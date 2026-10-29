@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diffchecker — local text diff</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-row">
+      <div>
+        <h1>diffchecker<span class="dim">.local</span></h1>
+        <p class="tagline">Runs entirely in your browser. Nothing leaves this device.</p>
+      </div>
+      <button type="button" class="btn-ghost" id="help-open">Shortcuts &amp; legend</button>
+    </div>
+  </header>
+
+  <div class="modal-overlay" id="help-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div class="modal-head">
+        <h2 id="help-title">Shortcuts &amp; legend</h2>
+        <button type="button" class="btn-ghost" id="help-close">Close</button>
+      </div>
+      <div class="modal-body">
+        <section>
+          <h3>Keyboard shortcuts</h3>
+          <ul class="shortcut-list">
+            <li><span class="keys"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd></span><span>Compare</span></li>
+            <li><span class="keys"><kbd>S</kbd></span><span>Swap original ⇄ changed</span></li>
+            <li><span class="keys"><kbd>V</kbd></span><span>Toggle side-by-side / unified view</span></li>
+            <li><span class="keys"><kbd>N</kbd></span><span>Jump to next change</span></li>
+            <li><span class="keys"><kbd>P</kbd></span><span>Jump to previous change</span></li>
+            <li><span class="keys"><kbd>D</kbd></span><span>Copy diff output</span></li>
+            <li><span class="keys"><kbd>M</kbd></span><span>Copy merged result</span></li>
+            <li><span class="keys"><kbd>?</kbd></span><span>Show/hide this panel</span></li>
+          </ul>
+          <p class="modal-note">Single-letter shortcuts only fire when you're not typing in a text field, so they won't interfere with pasting or editing.</p>
+        </section>
+        <section>
+          <h3>Colors</h3>
+          <ul class="legend-list">
+            <li><span class="legend-swatch swatch-rem"></span>Removed text — in the diff view, and as "keep original" in the merge assistant</li>
+            <li><span class="legend-swatch swatch-add"></span>Added text — in the diff view, and as "keep changed" in the merge assistant (the default)</li>
+            <li><span class="legend-swatch swatch-both"></span>Merge assistant only: keeping both versions in the output</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <section class="inputs">
+      <div class="pane">
+        <div class="pane-head">
+          <label for="original">Original</label>
+          <div class="pane-actions">
+            <button type="button" class="btn-ghost" data-copy="original">Copy</button>
+            <button type="button" class="btn-ghost" data-load="original">Load file</button>
+            <button type="button" class="btn-ghost" data-clear="original">Clear</button>
+          </div>
+        </div>
+        <textarea id="original" spellcheck="false" placeholder="Paste or load the original text…"></textarea>
+        <input type="file" id="file-original" accept=".txt,.md,.js,.py,.json,.css,.html,.csv,.log" hidden>
+      </div>
+
+      <div class="swap-col">
+        <button type="button" id="swap" title="Swap original and changed" aria-label="Swap original and changed">⇄</button>
+      </div>
+
+      <div class="pane">
+        <div class="pane-head">
+          <label for="changed">Changed</label>
+          <div class="pane-actions">
+            <button type="button" class="btn-ghost" data-copy="changed">Copy</button>
+            <button type="button" class="btn-ghost" data-load="changed">Load file</button>
+            <button type="button" class="btn-ghost" data-clear="changed">Clear</button>
+          </div>
+        </div>
+        <textarea id="changed" spellcheck="false" placeholder="Paste or load the changed text…"></textarea>
+        <input type="file" id="file-changed" accept=".txt,.md,.js,.py,.json,.css,.html,.csv,.log" hidden>
+      </div>
+    </section>
+
+    <section class="controls">
+      <label class="opt">
+        <input type="checkbox" id="opt-whitespace">
+        Ignore whitespace
+      </label>
+      <label class="opt">
+        <input type="checkbox" id="opt-case">
+        Ignore case
+      </label>
+      <label class="opt">
+        <input type="checkbox" id="opt-view" checked>
+        Side-by-side
+      </label>
+      <div class="controls-spacer"></div>
+      <button type="button" id="compare" class="btn-primary">Compare</button>
+    </section>
+
+    <section class="results" id="results" hidden>
+      <div class="results-head">
+        <div class="stats" id="stats"></div>
+        <div class="pane-actions">
+          <button type="button" class="btn-ghost" data-copy="diff-output">Copy diff</button>
+          <button type="button" class="btn-ghost" id="download">Download diff</button>
+        </div>
+      </div>
+      <div class="diff-view" id="diff-view"></div>
+    </section>
+
+    <section class="merge" id="merge-section" hidden>
+      <div class="merge-head">
+        <h2>Merge</h2>
+        <p class="merge-hint">Click a highlighted change to cycle it through changed → original → both. Whole added/removed lines get a single choice instead.</p>
+      </div>
+      <div class="merge-list" id="merge-list"></div>
+      <div class="pane merge-output-pane">
+        <div class="pane-head">
+          <label for="merged-output">Merged result</label>
+          <div class="pane-actions">
+            <button type="button" class="btn-ghost" data-copy="merged-output">Copy</button>
+            <button type="button" class="btn-ghost" id="download-merged">Download</button>
+          </div>
+        </div>
+        <textarea id="merged-output" spellcheck="false" readonly></textarea>
+      </div>
+    </section>
+
+    <p class="empty-state" id="empty-state">Paste text on both sides, then hit Compare.</p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

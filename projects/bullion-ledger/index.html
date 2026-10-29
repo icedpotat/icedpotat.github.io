@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bullion Ledger</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='44' fill='%23c9a227'/%3E%3Ccircle cx='50' cy='50' r='44' fill='none' stroke='%238a7224' stroke-width='4'/%3E%3Ctext x='50' y='66' font-size='46' text-anchor='middle' font-family='Georgia,serif' fill='%231a1409'%3EB%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#14161b;
+    --surface:#1b1e25;
+    --surface-2:#21242c;
+    --border:#2b2f39;
+    --border-soft:#23262f;
+    --text:#ece7dc;
+    --text-dim:#9a9ba6;
+    --text-faint:#686b76;
+    --gold:#c9a227;
+    --gold-soft:#8a7224;
+    --silver:#b7bcc4;
+    --green:#5fa876;
+    --red:#c9705f;
+    --radius:4px;
+    --serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.5;
+    min-height:100vh;
+  }
+  ::selection{background:var(--gold-soft);color:#fff;}
+  button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:none;cursor:pointer;}
+  input,select{font-family:inherit;font-size:inherit;color:var(--text);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:9px 10px;}
+  input:focus,select:focus,button:focus-visible{outline:2px solid var(--gold-soft);outline-offset:1px;}
+  input::placeholder{color:var(--text-faint);}
+  .num{font-variant-numeric:tabular-nums;}
+  a{color:var(--gold);}
+
+  .wrap{max-width:720px;margin:0 auto;padding:28px 20px 80px;}
+  .hidden{display:none !important;}
+
+  /* ---------- Lock screen ---------- */
+  #lockScreen{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+  }
+  .lock-card{
+    width:100%;max-width:380px;
+  }
+  .lock-mark{font-family:var(--serif);font-style:italic;font-size:28px;color:var(--gold);margin:0 0 4px;}
+  .lock-sub{color:var(--text-dim);font-size:13.5px;margin:0 0 28px;}
+  .lock-field{margin-bottom:14px;}
+  .lock-field label{display:block;font-size:12.5px;color:var(--text-dim);margin-bottom:6px;}
+  .lock-field input{width:100%;}
+  .lock-btn{
+    width:100%;background:var(--gold);color:#1a1409;font-weight:600;padding:11px;border-radius:var(--radius);margin-top:6px;
+    transition:background .15s;
+  }
+  .lock-btn:hover{background:#dab534;}
+  .lock-btn.secondary{background:transparent;color:var(--text-dim);border:1px solid var(--border);font-weight:500;}
+  .lock-btn.secondary:hover{color:var(--text);border-color:var(--text-faint);}
+  .lock-error{color:var(--red);font-size:13px;margin-top:10px;min-height:1em;}
+  .lock-toggle{display:block;margin-top:18px;font-size:13px;color:var(--text-dim);text-decoration:underline;text-underline-offset:3px;}
+  .lock-toggle:hover{color:var(--gold);}
+  .vault-warning{
+    border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);
+    padding:12px 14px;font-size:12.5px;color:var(--text-dim);margin-bottom:22px;line-height:1.55;
+  }
+  .vault-warning strong{color:var(--text);}
+  #importArea{margin-top:18px;}
+  textarea{
+    width:100%;background:var(--surface-2);color:var(--text);border:1px solid var(--border);
+    border-radius:var(--radius);font-family:ui-monospace,'SF Mono',Consolas,monospace;font-size:12.5px;
+    padding:10px;resize:vertical;line-height:1.5;
+  }
+
+  /* ---------- Header ---------- */
+  header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:26px;gap:12px;flex-wrap:wrap;}
+  .brand h1{font-family:var(--serif);font-style:italic;font-weight:400;font-size:26px;margin:0;color:var(--gold);}
+  .brand p{margin:2px 0 0;color:var(--text-dim);font-size:13px;}
+  .header-actions{display:flex;align-items:center;gap:10px;}
+  .currency-switch{display:flex;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+  .currency-switch button{padding:7px 11px;font-size:12.5px;color:var(--text-dim);border-right:1px solid var(--border);}
+  .currency-switch button:last-child{border-right:none;}
+  .currency-switch button.active{background:var(--surface-2);color:var(--gold);font-weight:600;}
+  .icon-btn{padding:7px 11px;border:1px solid var(--border);border-radius:var(--radius);color:var(--text-dim);font-size:12.5px;}
+  .icon-btn:hover{color:var(--text);border-color:var(--text-faint);}
+
+  /* ---------- Summary ---------- */
+  .summary{
+    border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);
+    padding:24px 24px 18px;margin-bottom:28px;
+  }
+  .summary-total-label{font-size:12px;color:var(--text-dim);text-transform:none;}
+  .summary-total{font-family:var(--serif);font-size:40px;margin:4px 0 2px;color:var(--text);}
+  .summary-total .cur{font-size:22px;color:var(--text-dim);margin-right:3px;}
+  .summary-meta{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border-soft);flex-wrap:wrap;gap:10px;}
+  .summary-meta .updated{font-size:12px;color:var(--text-faint);}
+  .summary-meta .updated button{color:var(--gold);text-decoration:underline;text-underline-offset:2px;margin-left:6px;}
+  .mode-toggle{display:flex;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+  .mode-toggle button{padding:6px 12px;font-size:12.5px;color:var(--text-dim);}
+  .mode-toggle button.active{background:var(--gold);color:#1a1409;font-weight:600;}
+  .price-row{display:flex;gap:18px;margin-top:12px;font-size:12.5px;color:var(--text-dim);flex-wrap:wrap;}
+  .price-row b{color:var(--text);font-weight:600;}
+  .fetch-warning{color:var(--red);font-size:12.5px;margin-top:10px;}
+
+  /* ---------- Section headers ---------- */
+  .stats-block{
+    border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);
+    padding:16px 24px;margin-bottom:10px;display:flex;gap:0;
+  }
+  .stats-block .stat{flex:1;padding:0 18px;border-left:1px solid var(--border-soft);}
+  .stats-block .stat:first-child{border-left:none;padding-left:0;}
+  .stats-block .stat-label{font-size:11.5px;color:var(--text-dim);}
+  .stats-block .stat-value{font-family:var(--serif);font-size:20px;margin-top:3px;}
+  .stats-block .stat-sub{font-size:12px;margin-top:2px;}
+  .stats-note{font-size:11.5px;color:var(--text-faint);padding:10px 24px 2px;margin-top:-6px;margin-bottom:10px;}
+  @media (max-width:520px){
+    .stats-block{flex-direction:column;gap:12px;}
+    .stats-block .stat{border-left:none;padding-left:0;border-top:1px solid var(--border-soft);padding-top:10px;}
+    .stats-block .stat:first-child{border-top:none;padding-top:0;}
+  }
+  .section-head{display:flex;justify-content:space-between;align-items:center;margin:30px 0 10px;}
+  .section-head h2{font-family:var(--serif);font-weight:400;font-size:18px;margin:0;}
+  .section-head .add-btn{font-size:12.5px;color:var(--gold);border:1px solid var(--gold-soft);padding:5px 10px;border-radius:var(--radius);}
+  .section-head .add-btn:hover{background:rgba(201,162,39,.1);}
+
+  .metal-group{margin-bottom:8px;}
+  .metal-group-head{display:flex;justify-content:space-between;align-items:baseline;padding:8px 2px;border-bottom:1px solid var(--border);}
+  .metal-group-head h3{font-family:var(--serif);font-size:16px;font-weight:400;margin:0;}
+  .metal-group-head .metal-sub{font-size:14px;color:var(--text-dim);}
+
+  .holding-row{
+    display:flex;justify-content:space-between;align-items:flex-start;gap:14px;
+    padding:14px 2px;border-bottom:1px solid var(--border-soft);
+  }
+  .holding-row:hover{background:rgba(255,255,255,.015);}
+  .h-desc{font-size:14.5px;color:var(--text);}
+  .h-meta{font-size:12px;color:var(--text-dim);margin-top:3px;}
+  .h-actions{margin-top:7px;display:flex;gap:12px;}
+  .h-actions button{font-size:12px;color:var(--text-faint);text-decoration:underline;text-underline-offset:2px;}
+  .h-actions button:hover{color:var(--text);}
+  .h-actions button.danger:hover{color:var(--red);}
+  .h-value{text-align:right;flex-shrink:0;}
+  .h-value .amt{font-family:var(--serif);font-size:18px;}
+  .h-value .gain{font-size:12px;margin-top:3px;}
+  .gain.pos{color:var(--green);}
+  .gain.neg{color:var(--red);}
+  .empty-note{color:var(--text-faint);font-size:13px;padding:16px 2px;}
+
+  /* ---------- Add/edit form panel ---------- */
+  .panel{
+    border:1px solid var(--gold-soft);border-radius:var(--radius);background:var(--surface);
+    padding:18px;margin:14px 0 24px;
+  }
+  .panel h3{font-family:var(--serif);font-weight:400;font-size:16px;margin:0 0 14px;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .form-grid .full{grid-column:1 / -1;}
+  .form-field label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:5px;}
+  .form-field input,.form-field select{width:100%;}
+  .form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;}
+  .btn{padding:8px 16px;border-radius:var(--radius);font-size:13px;}
+  .btn-primary{background:var(--gold);color:#1a1409;font-weight:600;}
+  .btn-primary:hover{background:#dab534;}
+  .btn-ghost{color:var(--text-dim);border:1px solid var(--border);}
+  .btn-ghost:hover{color:var(--text);border-color:var(--text-faint);}
+
+  /* ---------- Settings / backup ---------- */
+  .settings-disclosure{margin-top:34px;border-top:1px solid var(--border);padding-top:10px;}
+  .settings-disclosure summary{
+    cursor:pointer;list-style:none;font-size:13px;color:var(--text-dim);padding:6px 2px;
+    display:flex;align-items:center;gap:6px;user-select:none;
+  }
+  .settings-disclosure summary::-webkit-details-marker{display:none;}
+  .settings-disclosure summary::before{content:'›';display:inline-block;font-size:15px;transition:transform .15s;color:var(--text-faint);}
+  .settings-disclosure[open] summary::before{transform:rotate(90deg);}
+  .settings-disclosure summary:hover{color:var(--text);}
+  .block{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);padding:18px 20px;margin-top:16px;}
+  .block h3{font-family:var(--serif);font-weight:400;font-size:16px;margin:0 0 6px;}
+  .block p.hint{color:var(--text-dim);font-size:12.5px;margin:0 0 14px;line-height:1.5;}
+  .hist-chart{width:100%;}
+  .hist-chart svg{display:block;}
+  .hist-range{display:flex;justify-content:space-between;font-size:11.5px;color:var(--text-faint);margin-top:2px;}
+  .hist-change{font-size:14px;margin-top:10px;}
+  .hist-point-list{margin-top:10px;font-size:12px;color:var(--text-dim);}
+  .hist-point-list .hp-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border-soft);}
+  .hist-point-list .hp-row:last-child{border-bottom:none;}
+  .hist-point-list .hp-row button{color:var(--text-faint);text-decoration:underline;text-underline-offset:2px;margin-left:8px;font-size:11px;}
+  .hist-point-list .hp-row button:hover{color:var(--red);}
+  .premium-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-soft);font-size:13.5px;}
+  .premium-row:last-child{border-bottom:none;}
+  .premium-row input{width:70px;text-align:right;}
+  .backup-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
+  #saveCodeOut{margin-top:12px;}
+  .copy-note{font-size:12px;color:var(--green);margin-left:10px;}
+  footer{text-align:center;color:var(--text-faint);font-size:11.5px;margin-top:40px;}
+
+  @media (max-width:520px){
+    .form-grid{grid-template-columns:1fr;}
+    .holding-row{flex-direction:column;}
+    .h-value{text-align:left;}
+    .summary-total{font-size:32px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LOCK SCREEN ============ -->
+<div id="lockScreen">
+  <div class="lock-card">
+    <h1 class="lock-mark">Bullion Ledger</h1>
+    <p class="lock-sub" id="lockSubtitle">A private ledger for your precious metal holdings.</p>
+
+    <div class="vault-warning" id="setupWarning">
+      <strong>Before you begin:</strong> your holdings are encrypted with a password only you know. There is no password reset. If you forget it and have never exported a save code, the data cannot be recovered.
+    </div>
+
+    <form id="setupForm">
+      <div class="lock-field">
+        <label for="setupPw">Choose a password</label>
+        <input type="password" id="setupPw" autocomplete="new-password" required>
+      </div>
+      <div class="lock-field">
+        <label for="setupPw2">Confirm password</label>
+        <input type="password" id="setupPw2" autocomplete="new-password" required>
+      </div>
+      <button type="submit" class="lock-btn">Create vault</button>
+      <div class="lock-error" id="setupError"></div>
+      <button type="button" class="lock-toggle" id="showImportFromSetup">Restore from a save code instead</button>
+    </form>
+
+    <form id="unlockForm" class="hidden">
+      <div class="lock-field">
+        <label for="unlockPw">Password</label>
+        <input type="password" id="unlockPw" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="lock-btn">Unlock</button>
+      <div class="lock-error" id="unlockError"></div>
+      <button type="button" class="lock-toggle" id="showImport">Restore from a save code instead</button>
+    </form>
+
+    <div id="importArea" class="hidden">
+      <div class="lock-field">
+        <label for="importCode">Save code</label>
+        <textarea id="importCode" rows="4" placeholder="BL1-..."></textarea>
+      </div>
+      <div class="lock-field">
+        <label for="importPw">Password for this save code</label>
+        <input type="password" id="importPw" autocomplete="off">
+      </div>
+      <button type="button" class="lock-btn" id="doImport">Restore vault</button>
+      <div class="lock-error" id="importError"></div>
+      <button type="button" class="lock-toggle" id="hideImport">Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div class="wrap hidden" id="app">
+  <header>
+    <div class="brand">
+      <h1>Bullion Ledger</h1>
+      <p>Private ledger — decrypted only in this browser tab.</p>
+    </div>
+    <div class="header-actions">
+      <div class="currency-switch" id="currencySwitch">
+        <button data-currency="USD">USD</button>
+        <button data-currency="EUR">EUR</button>
+        <button data-currency="CHF">CHF</button>
+      </div>
+      <button class="icon-btn" id="lockNowBtn">Lock</button>
+    </div>
+  </header>
+
+  <div class="summary">
+    <div class="summary-total-label">Total holdings value</div>
+    <div class="summary-total"><span class="cur" id="totalCur">$</span><span class="num" id="totalAmt">0.00</span></div>
+    <div class="price-row" id="priceRow"></div>
+    <div class="summary-meta">
+      <div class="updated" id="updatedLine">Not yet fetched <button id="refreshBtn">Refresh prices</button></div>
+      <div class="mode-toggle" id="modeToggle">
+        <button data-mode="spot">Spot</button>
+        <button data-mode="worth">Worth</button>
+      </div>
+    </div>
+    <div class="fetch-warning hidden" id="fetchWarning"></div>
+  </div>
+
+  <div class="stats-block" id="statsBlock"></div>
+
+  <div class="section-head">
+    <h2>Holdings</h2>
+    <button class="add-btn" id="addHoldingBtn">+ Add holding</button>
+  </div>
+  <div id="formPanelSlot"></div>
+  <div id="holdingsList"></div>
+
+  <details class="settings-disclosure" id="historyDisclosure">
+    <summary>History</summary>
+    <div class="block">
+      <h3>Value over time</h3>
+      <p class="hint">A snapshot of your total value is recorded automatically each time prices refresh (at most once per day), shown here in the current Spot/Worth mode and currency. There's no free source for genuine <em>historical</em> gold/silver prices, so the chart can't be reconstructed after the fact — it only grows forward from whenever you start using the app. You can add a past point by hand below if you already know an earlier value.</p>
+      <div id="historyBlock"></div>
+      <button class="btn btn-ghost" id="addHistPointBtn" style="margin-top:12px;">+ Add a past point</button>
+      <div id="histFormSlot"></div>
+    </div>
+  </details>
+
+  <details class="settings-disclosure">
+    <summary>Settings</summary>
+
+    <div class="block">
+      <h3>Worth premiums</h3>
+      <p class="hint">"Worth" value adds a percentage on top of spot price, by form — a rough stand-in for realistic resale or replacement cost.</p>
+      <div id="premiumList"></div>
+    </div>
+
+    <div class="block">
+      <h3>Backup &amp; restore</h3>
+      <p class="hint">Local storage is tied to this browser. A save code is the only way to recover your holdings elsewhere, or after clearing browser data — keep one somewhere safe (a notes app, a password manager, a text file).</p>
+      <div class="backup-actions">
+        <button class="btn btn-primary" id="exportBtn">Generate save code</button>
+        <button class="btn btn-ghost" id="showImportMain">Restore a save code</button>
+      </div>
+      <div id="saveCodeOut"></div>
+      <div id="importMainArea" class="hidden" style="margin-top:14px;">
+        <div class="lock-field">
+          <label for="importCodeMain">Save code</label>
+          <textarea id="importCodeMain" rows="4" placeholder="BL1-..."></textarea>
+        </div>
+        <div class="lock-field">
+          <label for="importPwMain">Password for this save code</label>
+          <input type="password" id="importPwMain" autocomplete="off">
+        </div>
+        <button class="btn btn-primary" id="doImportMain">Restore (replaces current holdings)</button>
+        <div class="lock-error" id="importMainError"></div>
+      </div>
+    </div>
+  </details>
+
+  <footer>Prices from gold-api.com and the Frankfurter (ECB) exchange-rate API. Nothing leaves this device except those two public, anonymous price lookups.</footer>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ======================= constants ======================= */
+  var TROY_OZ_G = 31.1034768;
+  var GOLD_URL = 'https://api.gold-api.com/price/XAU';
+  var SILVER_URL = 'https://api.gold-api.com/price/XAG';
+  var FX_URL = 'https://api.frankfurter.app/latest?base=USD&symbols=EUR,CHF';
+  var CUR_SYMBOLS = {USD:'$', EUR:'€', CHF:'CHF '};
+
+  /* ======================= state ======================= */
+  var vaultKey = null;      // CryptoKey
+  var vaultSalt = null;     // Uint8Array
+  var holdings = [];
+  var settings = defaultSettings();
+  var history = []; // [{date:'YYYY-MM-DD', spot:usd, worth:usd, invested:usd}]
+  var prices = {gold:null, silver:null, rates:{USD:1,EUR:null,CHF:null}, updated:null, stale:false};
+  var displayCurrency = 'USD';
+  var mode = 'spot';
+  var editingId = null;
+
+  function defaultSettings(){
+    return { premiums: { ingot: 0, bullion: 5, other: 0 } };
+  }
+
+  /* ======================= crypto helpers ======================= */
+  function bytesToBase64(bytes){
+    var bin = '';
+    for (var i=0;i<bytes.length;i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function base64ToBytes(b64){
+    var bin = atob(b64);
+    var out = new Uint8Array(bin.length);
+    for (var i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  async function deriveKey(password, salt){
+    var enc = new TextEncoder();
+    var baseKey = await crypto.subtle.importKey('raw', enc.encode(password), {name:'PBKDF2'}, false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      {name:'PBKDF2', salt: salt, iterations: 250000, hash:'SHA-256'},
+      baseKey,
+      {name:'AES-GCM', length:256},
+      false,
+      ['encrypt','decrypt']
+    );
+  }
+
+  async function encryptJSON(key, obj){
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var enc = new TextEncoder();
+    var plaintext = enc.encode(JSON.stringify(obj));
+    var ct = await crypto.subtle.encrypt({name:'AES-GCM', iv:iv}, key, plaintext);
+    return {iv:iv, ciphertext:new Uint8Array(ct)};
+  }
+
+  async function decryptJSON(key, iv, ciphertext){
+    var pt = await crypto.subtle.decrypt({name:'AES-GCM', iv:iv}, key, ciphertext);
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+
+  /* ======================= vault persistence ======================= */
+  function hasStoredVault(){
+    return !!localStorage.getItem('bl_vault');
+  }
+
+  async function saveVault(){
+    if (!vaultKey || !vaultSalt) return;
+    var enc = await encryptJSON(vaultKey, {holdings: holdings, settings: settings, history: history});
+    var payload = {v:1, salt: bytesToBase64(vaultSalt), iv: bytesToBase64(enc.iv), data: bytesToBase64(enc.ciphertext)};
+    localStorage.setItem('bl_vault', JSON.stringify(payload));
+  }
+
+  async function createVault(password){
+    var salt = crypto.getRandomValues(new Uint8Array(16));
+    var key = await deriveKey(password, salt);
+    vaultKey = key; vaultSalt = salt;
+    holdings = []; settings = defaultSettings(); history = [];
+    await saveVault();
+  }
+
+  async function unlockVault(password){
+    var raw = localStorage.getItem('bl_vault');
+    if (!raw) throw new Error('No vault stored');
+    var payload = JSON.parse(raw);
+    var salt = base64ToBytes(payload.salt);
+    var iv = base64ToBytes(payload.iv);
+    var ciphertext = base64ToBytes(payload.data);
+    var key = await deriveKey(password, salt);
+    var data = await decryptJSON(key, iv, ciphertext); // throws on wrong password
+    vaultKey = key; vaultSalt = salt;
+    holdings = data.holdings || [];
+    settings = data.settings || defaultSettings();
+    history = data.history || [];
+  }
+
+  async function generateSaveCode(){
+    var enc = await encryptJSON(vaultKey, {holdings: holdings, settings: settings, history: history});
+    var total = new Uint8Array(1 + vaultSalt.length + enc.iv.length + enc.ciphertext.length);
+    var o = 0;
+    total[0] = 1; o = 1;
+    total.set(vaultSalt, o); o += vaultSalt.length;
+    total.set(enc.iv, o); o += enc.iv.length;
+    total.set(enc.ciphertext, o);
+    return 'BL1-' + bytesToBase64(total);
+  }
+
+  async function importSaveCode(code, password){
+    code = code.trim();
+    if (code.indexOf('BL1-') !== 0) throw new Error('That does not look like a Bullion Ledger save code.');
+    var bytes = base64ToBytes(code.slice(4));
+    var salt = bytes.slice(1, 17);
+    var iv = bytes.slice(17, 29);
+    var ciphertext = bytes.slice(29);
+    var key = await deriveKey(password, salt);
+    var data = await decryptJSON(key, iv, ciphertext); // throws on wrong password
+    vaultKey = key; vaultSalt = salt;
+    holdings = data.holdings || [];
+    settings = data.settings || defaultSettings();
+    history = data.history || [];
+    await saveVault();
+  }
+
+  function totalsUsdNow(){
+    if (holdings.length === 0) return null;
+    var spot = 0, worth = 0, invested = 0, any = false;
+    holdings.forEach(function(h){
+      var sv = spotValueUsd(h);
+      var wv = worthValueUsd(h);
+      if (sv != null){ spot += sv; any = true; }
+      if (wv != null){ worth += wv; }
+      if (h.buyPrice != null && h.buyPrice !== ''){ invested += toUsd(Number(h.buyPrice), h.buyCurrency); }
+    });
+    return any ? {spot:spot, worth:worth, invested:invested} : null;
+  }
+
+  async function recordSnapshot(){
+    var t = totalsUsdNow();
+    if (!t) return;
+    var today = new Date().toISOString().slice(0,10);
+    var entry = {date:today, spot:t.spot, worth:t.worth, invested:t.invested};
+    var idx = history.findIndex(function(e){ return e.date === today; });
+    if (idx >= 0) history[idx] = entry; else history.push(entry);
+    history.sort(function(a,b){ return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+    await saveVault();
+  }
+
+  /* ======================= pricing ======================= */
+  async function fetchPrices(){
+    var warnEl = document.getElementById('fetchWarning');
+    warnEl.classList.add('hidden');
+    try {
+      var results = await Promise.all([
+        fetch(GOLD_URL).then(function(r){ return r.json(); }),
+        fetch(SILVER_URL).then(function(r){ return r.json(); }),
+        fetch(FX_URL).then(function(r){ return r.json(); })
+      ]);
+      var xau = results[0], xag = results[1], fx = results[2];
+      var goldPrice = (xau.price != null) ? xau.price : xau.priceUsd;
+      var silverPrice = (xag.price != null) ? xag.price : xag.priceUsd;
+      prices = {
+        gold: Number(goldPrice),
+        silver: Number(silverPrice),
+        rates: {USD:1, EUR: fx.rates.EUR, CHF: fx.rates.CHF},
+        updated: new Date(),
+        stale: false
+      };
+      localStorage.setItem('bl_prices_cache', JSON.stringify(prices));
+      await recordSnapshot();
+    } catch(e){
+      var cached = localStorage.getItem('bl_prices_cache');
+      if (cached){
+        prices = JSON.parse(cached);
+        prices.updated = prices.updated ? new Date(prices.updated) : null;
+        prices.stale = true;
+      }
+      warnEl.textContent = 'Could not fetch live prices. If you opened this file directly (file://), serve it from a local server over http(s) instead. ' + (prices.updated ? 'Showing the last cached prices.' : '');
+      warnEl.classList.remove('hidden');
+    }
+    renderAll();
+  }
+
+  /* ======================= valuation ======================= */
+  function weightInOz(h){
+    return h.unit === 'g' ? (h.quantity / TROY_OZ_G) : h.quantity;
+  }
+  function totalWeightOz(h){
+    return weightInOz(h) * (h.pieces || 1);
+  }
+  function spotPriceUsd(metal){
+    return metal === 'gold' ? prices.gold : prices.silver;
+  }
+  function spotValueUsd(h){
+    var p = spotPriceUsd(h.metal);
+    if (p == null) return null;
+    return totalWeightOz(h) * p;
+  }
+  function worthValueUsd(h){
+    var sv = spotValueUsd(h);
+    if (sv == null) return null;
+    var premium = (settings.premiums[h.form] || 0);
+    return sv * (1 + premium/100);
+  }
+  function displayValueUsd(h){
+    return mode === 'worth' ? worthValueUsd(h) : spotValueUsd(h);
+  }
+  function usdToDisplay(amountUsd){
+    if (amountUsd == null) return null;
+    var rate = prices.rates[displayCurrency] || 1;
+    return amountUsd * rate;
+  }
+  function toUsd(amount, currency){
+    var rate = prices.rates[currency] || 1;
+    return amount / rate;
+  }
+  function fmtMoney(amount){
+    if (amount == null) return '—';
+    return amount.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  /* ======================= rendering ======================= */
+  function renderAll(){
+    renderSummary();
+    renderStats();
+    renderHoldings();
+    renderHistory();
+    renderPremiumSettings();
+  }
+
+  function buildSparkline(points){
+    var w = 600, h = 150, padX = 6, padY = 14;
+    var vals = points.map(function(p){ return usdToDisplay(mode === 'worth' ? p.worth : p.spot); });
+    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+    if (min === max){ var pad = (min === 0 ? 1 : Math.abs(min) * 0.05); min -= pad; max += pad; }
+    var n = vals.length;
+    var stepX = n > 1 ? (w - 2*padX) / (n-1) : 0;
+    function xAt(i){ return padX + stepX*i; }
+    function yAt(v){ return h - padY - ((v - min) / (max - min)) * (h - 2*padY); }
+    var pathD = vals.map(function(v,i){ return (i===0?'M':'L') + xAt(i).toFixed(1) + ',' + yAt(v).toFixed(1); }).join(' ');
+    var areaD = pathD + ' L' + xAt(n-1).toFixed(1) + ',' + (h-padY) + ' L' + xAt(0).toFixed(1) + ',' + (h-padY) + ' Z';
+    var sym = CUR_SYMBOLS[displayCurrency];
+    var circles = vals.map(function(v,i){
+      return '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(v).toFixed(1) + '" r="2.6" fill="#c9a227"><title>' + points[i].date + (points[i].manual?' (manual)':'') + ': ' + sym + fmtMoney(v) + '</title></circle>';
+    }).join('');
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" height="140" preserveAspectRatio="none">' +
+      '<path d="' + areaD + '" fill="rgba(201,162,39,0.09)" stroke="none"></path>' +
+      '<path d="' + pathD + '" fill="none" stroke="#c9a227" stroke-width="1.6"></path>' +
+      circles + '</svg>';
+  }
+
+  function renderHistory(){
+    var el = document.getElementById('historyBlock');
+    if (!el) return;
+    if (history.length === 0){
+      el.innerHTML = '<p class="hint" style="margin:0;">No snapshots yet. One is recorded next time prices refresh.</p>';
+      return;
+    }
+    if (history.length === 1){
+      var only = history[0];
+      var symO = CUR_SYMBOLS[displayCurrency];
+      el.innerHTML = '<p class="hint" style="margin:0;">One point so far (' + only.date + ': ' + symO + fmtMoney(usdToDisplay(mode==='worth'?only.worth:only.spot)) + '). A chart will appear once there are at least two.</p>' + renderPointList();
+      return;
+    }
+    var sym = CUR_SYMBOLS[displayCurrency];
+    var first = history[0], last = history[history.length-1];
+    var firstV = usdToDisplay(mode==='worth'?first.worth:first.spot);
+    var lastV = usdToDisplay(mode==='worth'?last.worth:last.spot);
+    var delta = lastV - firstV;
+    var pct = firstV !== 0 ? (delta/firstV*100) : null;
+    var cls = delta >= 0 ? 'pos' : 'neg';
+    var html = '<div class="hist-chart">' + buildSparkline(history) + '</div>';
+    html += '<div class="hist-range"><span>' + first.date + '</span><span>' + last.date + '</span></div>';
+    html += '<div class="hist-change num gain ' + cls + '">' + (delta>=0?'+':'') + sym + fmtMoney(delta) + (pct!=null?' (' + (pct>=0?'+':'') + pct.toFixed(1) + '%)':'') + ' since ' + first.date + '</div>';
+    html += renderPointList();
+    el.innerHTML = html;
+  }
+
+  function renderPointList(){
+    var sym = CUR_SYMBOLS[displayCurrency];
+    var rows = history.slice().reverse().map(function(p){
+      var v = usdToDisplay(mode==='worth'?p.worth:p.spot);
+      return '<div class="hp-row"><span>' + p.date + (p.manual?' · manual':'') + '</span><span class="num">' + sym + fmtMoney(v) + '<button data-action="delhist" data-date="' + p.date + '">remove</button></span></div>';
+    }).join('');
+    return '<div class="hist-point-list">' + rows + '</div>';
+  }
+
+  function renderStats(){
+    var el = document.getElementById('statsBlock');
+    var withBuy = holdings.filter(function(h){ return h.buyPrice != null && h.buyPrice !== ''; });
+    if (withBuy.length === 0){
+      el.innerHTML = '';
+      var oldNote = document.getElementById('statsNote');
+      if (oldNote) oldNote.remove();
+      return;
+    }
+    var investedUsd = 0, currentUsd = 0, anyPrice = false;
+    withBuy.forEach(function(h){
+      investedUsd += toUsd(Number(h.buyPrice), h.buyCurrency);
+      var v = displayValueUsd(h);
+      if (v != null){ currentUsd += v; anyPrice = true; }
+    });
+    var sym = CUR_SYMBOLS[displayCurrency];
+    var investedDisp = usdToDisplay(investedUsd);
+    var currentDisp = anyPrice ? usdToDisplay(currentUsd) : null;
+    var gainDisp = (currentDisp != null) ? (currentDisp - investedDisp) : null;
+    var gainPct = (currentDisp != null && investedDisp > 0) ? ((currentDisp - investedDisp) / investedDisp * 100) : null;
+    var gainClass = gainDisp == null ? '' : (gainDisp >= 0 ? 'pos' : 'neg');
+
+    var html = '<div class="stat"><div class="stat-label">Invested (' + withBuy.length + ' of ' + holdings.length + ' holdings)</div><div class="stat-value num">' + sym + fmtMoney(investedDisp) + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Current value of those holdings</div><div class="stat-value num">' + (currentDisp != null ? sym + fmtMoney(currentDisp) : '—') + '</div></div>';
+    html += '<div class="stat"><div class="stat-label">Profit / loss</div><div class="stat-value num gain ' + gainClass + '">' + (gainDisp != null ? (gainDisp >= 0 ? '+' : '') + sym + fmtMoney(gainDisp) : '—') + '</div>';
+    if (gainPct != null){
+      html += '<div class="stat-sub num gain ' + gainClass + '">' + (gainPct >= 0 ? '+' : '') + gainPct.toFixed(1) + '%</div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+
+    var existingNote = document.getElementById('statsNote');
+    if (existingNote) existingNote.remove();
+    var note = holdings.length - withBuy.length;
+    if (note > 0){
+      el.insertAdjacentHTML('afterend', '<div class="stats-note" id="statsNote">' + note + ' holding' + (note===1?'':'s') + ' without a buy price recorded ' + (note===1?'is':'are') + ' excluded from profit/loss.</div>');
+    }
+  }
+
+  function renderSummary(){
+    var sym = CUR_SYMBOLS[displayCurrency];
+    document.getElementById('totalCur').textContent = sym;
+    var totalUsd = 0, any = false;
+    holdings.forEach(function(h){
+      var v = displayValueUsd(h);
+      if (v != null){ totalUsd += v; any = true; }
+    });
+    var totalDisp = any ? usdToDisplay(totalUsd) : null;
+    document.getElementById('totalAmt').textContent = totalDisp != null ? fmtMoney(totalDisp) : '—';
+
+    document.querySelectorAll('#currencySwitch button').forEach(function(b){
+      b.classList.toggle('active', b.dataset.currency === displayCurrency);
+    });
+    document.querySelectorAll('#modeToggle button').forEach(function(b){
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+
+    var updEl = document.getElementById('updatedLine');
+    if (prices.updated){
+      var t = (prices.updated instanceof Date) ? prices.updated : new Date(prices.updated);
+      updEl.innerHTML = (prices.stale ? 'Last cached ' : 'Updated ') + t.toLocaleTimeString() + ' <button id="refreshBtn">Refresh prices</button>';
+    } else {
+      updEl.innerHTML = 'Not yet fetched <button id="refreshBtn">Refresh prices</button>';
+    }
+    var rb = document.getElementById('refreshBtn');
+    if (rb) rb.addEventListener('click', fetchPrices);
+
+    var priceRow = document.getElementById('priceRow');
+    if (prices.gold != null){
+      priceRow.innerHTML =
+        '<span>Gold <b class="num">' + sym + fmtMoney(usdToDisplay(prices.gold)) + '</b>/oz</span>' +
+        '<span>Silver <b class="num">' + sym + fmtMoney(usdToDisplay(prices.silver)) + '</b>/oz</span>';
+    } else {
+      priceRow.innerHTML = '';
+    }
+  }
+
+  function groupLabel(metal){ return metal === 'gold' ? 'Gold' : 'Silver'; }
+  function formLabel(f){ return f === 'ingot' ? 'Ingot' : (f === 'bullion' ? 'Bullion' : 'Other'); }
+
+  function renderHoldings(){
+    var list = document.getElementById('holdingsList');
+    if (holdings.length === 0){
+      list.innerHTML = '<div class="empty-note">No holdings yet. Add your first one above.</div>';
+      return;
+    }
+    var metals = ['gold','silver'];
+    var html = '';
+    metals.forEach(function(metal){
+      var items = holdings.filter(function(h){ return h.metal === metal; });
+      if (items.length === 0) return;
+      var subtotalUsd = 0, any = false;
+      items.forEach(function(h){ var v = displayValueUsd(h); if (v!=null){ subtotalUsd += v; any = true; } });
+      var subtotalDisp = any ? usdToDisplay(subtotalUsd) : null;
+      var sym = CUR_SYMBOLS[displayCurrency];
+
+      html += '<div class="metal-group">';
+      html += '<div class="metal-group-head"><h3>' + groupLabel(metal) + '</h3><span class="metal-sub num">' + sym + fmtMoney(subtotalDisp) + '</span></div>';
+
+      items.forEach(function(h){
+        var valUsd = displayValueUsd(h);
+        var valDisp = usdToDisplay(valUsd);
+        var buyUsd = (h.buyPrice != null && h.buyPrice !== '') ? toUsd(Number(h.buyPrice), h.buyCurrency) : null;
+        var gainDisp = (buyUsd != null && valUsd != null) ? usdToDisplay(valUsd - buyUsd) : null;
+        var weight = totalWeightOz(h);
+        var sym2 = CUR_SYMBOLS[displayCurrency];
+
+        html += '<div class="holding-row" data-id="' + h.id + '">';
+        html += '  <div class="h-main">';
+        html += '    <div class="h-desc">' + escapeHtml(h.description || '(untitled)') + '</div>';
+        html += '    <div class="h-meta">' + formLabel(h.form) + ' · ' + h.quantity + ' ' + h.unit + (h.pieces > 1 ? ' × ' + h.pieces + ' pcs' : '') + ' · ' + weight.toFixed(3) + ' oz total' + (h.dateAdded ? ' · added ' + h.dateAdded : '') + '</div>';
+        html += '    <div class="h-actions"><button data-action="edit" data-id="' + h.id + '">Edit</button><button data-action="delete" data-id="' + h.id + '" class="danger">Delete</button></div>';
+        html += '  </div>';
+        html += '  <div class="h-value">';
+        html += '    <div class="amt num">' + sym2 + fmtMoney(valDisp) + '</div>';
+        if (gainDisp != null){
+          html += '    <div class="gain num ' + (gainDisp >= 0 ? 'pos' : 'neg') + '">' + (gainDisp >= 0 ? '+' : '') + sym2 + fmtMoney(gainDisp) + ' vs buy</div>';
+        }
+        html += '  </div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    list.innerHTML = html;
+  }
+
+  function renderPremiumSettings(){
+    var el = document.getElementById('premiumList');
+    var rows = ['ingot','bullion','other'].map(function(f){
+      return '<div class="premium-row"><span>' + formLabel(f) + '</span><span><input type="number" step="0.1" class="num premium-input" data-form="' + f + '" value="' + settings.premiums[f] + '"> %</span></div>';
+    }).join('');
+    el.innerHTML = rows;
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  /* ======================= add/edit form ======================= */
+  function openForm(existing){
+    editingId = existing ? existing.id : null;
+    var slot = document.getElementById('formPanelSlot');
+    var h = existing || {metal:'gold', description:'', form:'bullion', quantity:1, unit:'oz', pieces:1, buyPrice:'', buyCurrency:'USD', dateAdded: new Date().toISOString().slice(0,10)};
+    slot.innerHTML =
+      '<div class="panel">' +
+      '<h3>' + (existing ? 'Edit holding' : 'Add holding') + '</h3>' +
+      '<div class="form-grid">' +
+        field('Metal', '<select id="f_metal"><option value="gold"' + sel(h.metal,'gold') + '>Gold</option><option value="silver"' + sel(h.metal,'silver') + '>Silver</option></select>') +
+        field('Form', '<select id="f_form"><option value="ingot"' + sel(h.form,'ingot') + '>Ingot</option><option value="bullion"' + sel(h.form,'bullion') + '>Bullion</option><option value="other"' + sel(h.form,'other') + '>Other</option></select>') +
+        field('Description', '<input id="f_description" type="text" value="' + escapeAttr(h.description) + '" placeholder="e.g. 1oz PAMP Suisse bar">', true) +
+        field('Quantity (per piece)', '<input id="f_quantity" type="number" step="0.0001" min="0" value="' + h.quantity + '">') +
+        field('Unit', '<select id="f_unit"><option value="oz"' + sel(h.unit,'oz') + '>oz (troy)</option><option value="g"' + sel(h.unit,'g') + '>g</option></select>') +
+        field('Piece count', '<input id="f_pieces" type="number" step="1" min="1" value="' + (h.pieces||1) + '">') +
+        field('Date added', '<input id="f_date" type="date" value="' + h.dateAdded + '">') +
+        field('Buy price (optional)', '<input id="f_buyprice" type="number" step="0.01" min="0" value="' + h.buyPrice + '">') +
+        field('Paid in', '<select id="f_buycur"><option value="USD"' + sel(h.buyCurrency,'USD') + '>USD</option><option value="EUR"' + sel(h.buyCurrency,'EUR') + '>EUR</option><option value="CHF"' + sel(h.buyCurrency,'CHF') + '>CHF</option></select>') +
+      '</div>' +
+      '<div class="form-actions"><button class="btn btn-ghost" id="formCancel">Cancel</button><button class="btn btn-primary" id="formSave">' + (existing?'Save changes':'Add holding') + '</button></div>' +
+      '</div>';
+
+    document.getElementById('formCancel').addEventListener('click', closeForm);
+    document.getElementById('formSave').addEventListener('click', function(){ submitForm(existing); });
+    document.getElementById('f_description').focus();
+  }
+  function field(label, inputHtml, full){
+    return '<div class="form-field' + (full?' full':'') + '"><label>' + label + '</label>' + inputHtml + '</div>';
+  }
+  function sel(a,b){ return a===b ? ' selected' : ''; }
+  function escapeAttr(s){ return String(s==null?'':s).replace(/"/g,'&quot;'); }
+
+  function closeForm(){
+    editingId = null;
+    document.getElementById('formPanelSlot').innerHTML = '';
+  }
+
+  async function submitForm(existing){
+    var description = document.getElementById('f_description').value.trim();
+    var quantity = parseFloat(document.getElementById('f_quantity').value);
+    if (!description || !(quantity > 0)){
+      alert('Please enter a description and a quantity greater than zero.');
+      return;
+    }
+    var buyPriceRaw = document.getElementById('f_buyprice').value;
+    var h = {
+      id: existing ? existing.id : (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
+      metal: document.getElementById('f_metal').value,
+      description: description,
+      form: document.getElementById('f_form').value,
+      quantity: quantity,
+      unit: document.getElementById('f_unit').value,
+      pieces: parseInt(document.getElementById('f_pieces').value, 10) || 1,
+      buyPrice: buyPriceRaw === '' ? null : parseFloat(buyPriceRaw),
+      buyCurrency: document.getElementById('f_buycur').value,
+      dateAdded: document.getElementById('f_date').value || new Date().toISOString().slice(0,10)
+    };
+    if (existing){
+      var idx = holdings.findIndex(function(x){ return x.id === existing.id; });
+      holdings[idx] = h;
+    } else {
+      holdings.push(h);
+    }
+    await saveVault();
+    closeForm();
+    renderAll();
+  }
+
+  /* ======================= event wiring ======================= */
+  function openHistForm(){
+    var slot = document.getElementById('histFormSlot');
+    var today = new Date().toISOString().slice(0,10);
+    slot.innerHTML =
+      '<div class="panel" style="margin-top:12px;">' +
+      '<h3>Add a past point</h3>' +
+      '<div class="form-grid">' +
+        field('Date', '<input id="hp_date" type="date" value="' + today + '" max="' + today + '">') +
+        field('Total value', '<input id="hp_amount" type="number" step="0.01" min="0" placeholder="0.00">') +
+        field('Currency', '<select id="hp_currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="CHF">CHF</option></select>') +
+      '</div>' +
+      '<p class="hint">Enter what your total holdings were worth on that date, in whatever currency you knew it in. This is a manual estimate, not a verified market price.</p>' +
+      '<div class="form-actions"><button class="btn btn-ghost" id="hpCancel">Cancel</button><button class="btn btn-primary" id="hpSave">Add point</button></div>' +
+      '</div>';
+    document.getElementById('hp_currency').value = displayCurrency;
+    document.getElementById('hpCancel').addEventListener('click', function(){ slot.innerHTML = ''; });
+    document.getElementById('hpSave').addEventListener('click', async function(){
+      var date = document.getElementById('hp_date').value;
+      var amount = parseFloat(document.getElementById('hp_amount').value);
+      var currency = document.getElementById('hp_currency').value;
+      if (!date || !(amount >= 0)){ alert('Enter a date and a value of zero or more.'); return; }
+      var valueUsd = toUsd(amount, currency);
+      var entry = {date: date, spot: valueUsd, worth: valueUsd, invested: null, manual: true};
+      var idx = history.findIndex(function(e){ return e.date === date; });
+      if (idx >= 0){
+        if (!confirm('There is already a point on ' + date + '. Replace it?')) return;
+        history[idx] = entry;
+      } else {
+        history.push(entry);
+      }
+      history.sort(function(a,b){ return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+      await saveVault();
+      slot.innerHTML = '';
+      renderAll();
+    });
+  }
+
+  function wireStaticEvents(){
+    document.getElementById('addHoldingBtn').addEventListener('click', function(){ openForm(null); });
+    document.getElementById('addHistPointBtn').addEventListener('click', openHistForm);
+    document.getElementById('historyBlock').addEventListener('click', async function(e){
+      var btn = e.target.closest('button[data-action="delhist"]');
+      if (!btn) return;
+      var date = btn.dataset.date;
+      if (!confirm('Remove the history point for ' + date + '?')) return;
+      history = history.filter(function(p){ return p.date !== date; });
+      await saveVault();
+      renderAll();
+    });
+
+    document.getElementById('holdingsList').addEventListener('click', function(e){
+      var btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      var id = btn.dataset.id;
+      var h = holdings.find(function(x){ return x.id === id; });
+      if (!h) return;
+      if (btn.dataset.action === 'edit'){
+        openForm(h);
+      } else if (btn.dataset.action === 'delete'){
+        if (confirm('Delete "' + (h.description || 'this holding') + '"? This cannot be undone.')){
+          holdings = holdings.filter(function(x){ return x.id !== id; });
+          saveVault().then(renderAll);
+        }
+      }
+    });
+
+    document.getElementById('currencySwitch').addEventListener('click', function(e){
+      var b = e.target.closest('button[data-currency]');
+      if (!b) return;
+      displayCurrency = b.dataset.currency;
+      renderAll();
+    });
+    document.getElementById('modeToggle').addEventListener('click', function(e){
+      var b = e.target.closest('button[data-mode]');
+      if (!b) return;
+      mode = b.dataset.mode;
+      renderAll();
+    });
+    document.getElementById('lockNowBtn').addEventListener('click', lockNow);
+
+    document.getElementById('premiumList').addEventListener('change', function(e){
+      if (!e.target.classList.contains('premium-input')) return;
+      var f = e.target.dataset.form;
+      settings.premiums[f] = parseFloat(e.target.value) || 0;
+      saveVault().then(renderAll);
+    });
+
+    document.getElementById('exportBtn').addEventListener('click', async function(){
+      var code = await generateSaveCode();
+      var out = document.getElementById('saveCodeOut');
+      out.innerHTML = '<textarea id="codeBox" rows="5" readonly>' + code + '</textarea><div><button class="btn btn-ghost" id="copyCodeBtn" style="margin-top:8px;">Copy to clipboard</button><span class="copy-note hidden" id="copyNote">Copied.</span></div>';
+      document.getElementById('copyCodeBtn').addEventListener('click', function(){
+        var box = document.getElementById('codeBox');
+        box.select();
+        navigator.clipboard && navigator.clipboard.writeText(code).catch(function(){});
+        document.getElementById('copyNote').classList.remove('hidden');
+      });
+    });
+
+    document.getElementById('showImportMain').addEventListener('click', function(){
+      document.getElementById('importMainArea').classList.toggle('hidden');
+    });
+    document.getElementById('doImportMain').addEventListener('click', async function(){
+      var code = document.getElementById('importCodeMain').value;
+      var pw = document.getElementById('importPwMain').value;
+      var errEl = document.getElementById('importMainError');
+      errEl.textContent = '';
+      if (!confirm('This will replace all holdings currently stored in this browser with the contents of the save code. Continue?')) return;
+      try {
+        await importSaveCode(code, pw);
+        document.getElementById('importMainArea').classList.add('hidden');
+        document.getElementById('importCodeMain').value = '';
+        document.getElementById('importPwMain').value = '';
+        renderAll();
+      } catch(e){
+        errEl.textContent = 'Could not restore — wrong password, or the save code is corrupted.';
+      }
+    });
+  }
+
+  function lockNow(){
+    vaultKey = null; vaultSalt = null;
+    holdings = []; settings = defaultSettings();
+    editingId = null;
+    document.getElementById('app').classList.add('hidden');
+    showLockScreen();
+  }
+
+  /* ======================= lock screen logic ======================= */
+  function showLockScreen(){
+    document.getElementById('lockScreen').classList.remove('hidden');
+    var hasVault = hasStoredVault();
+    document.getElementById('setupForm').classList.toggle('hidden', hasVault);
+    document.getElementById('setupWarning').classList.toggle('hidden', hasVault);
+    document.getElementById('unlockForm').classList.toggle('hidden', !hasVault);
+    document.getElementById('lockSubtitle').textContent = hasVault
+      ? 'Enter your password to unlock this device\u2019s vault.'
+      : 'A private ledger for your precious metal holdings.';
+    document.getElementById('importArea').classList.add('hidden');
+  }
+
+  async function enterApp(){
+    document.getElementById('lockScreen').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    var cached = localStorage.getItem('bl_prices_cache');
+    if (cached){
+      try {
+        var c = JSON.parse(cached);
+        c.updated = c.updated ? new Date(c.updated) : null;
+        c.stale = true;
+        prices = c;
+      } catch(e){}
+    }
+    renderAll();
+    fetchPrices();
+  }
+
+  function wireLockScreen(){
+    document.getElementById('setupForm').addEventListener('submit', async function(e){
+      e.preventDefault();
+      var pw = document.getElementById('setupPw').value;
+      var pw2 = document.getElementById('setupPw2').value;
+      var err = document.getElementById('setupError');
+      err.textContent = '';
+      if (pw.length < 6){ err.textContent = 'Use at least 6 characters.'; return; }
+      if (pw !== pw2){ err.textContent = 'Passwords do not match.'; return; }
+      await createVault(pw);
+      enterApp();
+    });
+
+    document.getElementById('unlockForm').addEventListener('submit', async function(e){
+      e.preventDefault();
+      var pw = document.getElementById('unlockPw').value;
+      var err = document.getElementById('unlockError');
+      err.textContent = '';
+      try {
+        await unlockVault(pw);
+        document.getElementById('unlockPw').value = '';
+        enterApp();
+      } catch(ex){
+        err.textContent = 'Incorrect password.';
+      }
+    });
+
+    document.getElementById('showImport').addEventListener('click', function(){
+      document.getElementById('unlockForm').classList.add('hidden');
+      document.getElementById('importArea').classList.remove('hidden');
+    });
+    document.getElementById('showImportFromSetup').addEventListener('click', function(){
+      document.getElementById('setupForm').classList.add('hidden');
+      document.getElementById('setupWarning').classList.add('hidden');
+      document.getElementById('importArea').classList.remove('hidden');
+    });
+    document.getElementById('hideImport').addEventListener('click', function(){
+      document.getElementById('importArea').classList.add('hidden');
+      showLockScreen();
+    });
+    document.getElementById('doImport').addEventListener('click', async function(){
+      var code = document.getElementById('importCode').value;
+      var pw = document.getElementById('importPw').value;
+      var err = document.getElementById('importError');
+      err.textContent = '';
+      if (hasStoredVault() && !confirm('This browser already has a vault stored. Restoring will replace it with the contents of this save code. Continue?')) return;
+      try {
+        await importSaveCode(code, pw);
+        enterApp();
+      } catch(e){
+        err.textContent = 'Could not restore — wrong password, or the save code is corrupted.';
+      }
+    });
+  }
+
+  /* ======================= init ======================= */
+  wireLockScreen();
+  wireStaticEvents();
+  showLockScreen();
+
+})();
+</script>
+</body>
+</html>

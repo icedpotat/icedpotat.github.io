@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projects</title>
+<style>
+  :root{
+    --bg:#1b1c1f; --panel:#232428; --border:#34363b;
+    --text:#e6e7ea; --muted:#8a8d94; --accent:#d8a94f;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  body{min-height:100vh;}
+  header{padding:48px 24px 24px;max-width:900px;margin:0 auto;}
+  header h1{margin:0;font-size:26px;font-weight:600;}
+  header p{color:var(--muted);font-size:14px;margin:8px 0 0;}
+  main{max-width:900px;margin:0 auto;padding:0 24px 60px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;}
+  .card{
+    display:block;background:var(--panel);border:1px solid var(--border);
+    border-radius:10px;padding:20px;text-decoration:none;color:inherit;
+    transition:border-color .15s, transform .15s;
+  }
+  .card:hover{border-color:var(--accent);transform:translateY(-2px);}
+  .card h2{margin:0 0 6px;font-size:17px;font-weight:600;}
+  .card p{margin:0;color:var(--muted);font-size:13px;line-height:1.5;}
+  .card .tag{
+    display:inline-block;margin-top:12px;font-size:11px;color:var(--accent);
+    border:1px solid var(--accent);border-radius:4px;padding:2px 8px;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Projects</h1>
+    <p>A small collection of standalone tools, hosted on GitHub Pages.</p>
+  </header>
+  <main>
+    <div class="grid" id="project-grid">
+      <a class="card" href="projects/bullion-ledger/">
+        <h2>Bullion Ledger</h2>
+        <p>Private, encrypted precious-metal holdings tracker with live spot prices.</p>
+        <span class="tag">single-page app</span>
+      </a>
+      <a class="card" href="projects/diffchecker/">
+        <h2>diffchecker.local</h2>
+        <p>Local text diff and merge tool — side-by-side or unified view.</p>
+        <span class="tag">web tool</span>
+      </a>
+      <!-- Add future projects here:
+      <a class="card" href="projects/new-project/">
+        <h2>Project name</h2>
+        <p>Short description.</p>
+        <span class="tag">type</span>
+      </a>
+      -->
+    </div>
+  </main>
+</body>
+</html>

@@ -191,6 +191,8 @@ button { font-family: var(--sans); cursor: pointer; }
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
+  /* clip (unlike hidden) keeps the rounded corners without breaking the sticky header */
+  overflow: clip;
 }
 
 .results-head {
@@ -623,3 +625,77 @@ kbd {
 .stats .warn { color: var(--accent); }
 
 .btn-primary:disabled { opacity: 0.6; cursor: progress; filter: none; }
+
+/* Sticky results bar: stats and controls stay visible while scrolling a long diff */
+
+.results-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.results-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.change-nav { display: flex; align-items: center; gap: 6px; }
+
+.change-counter {
+  min-width: 56px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.change-nav .btn-ghost:disabled {
+  color: var(--muted);
+  border-color: var(--border);
+  opacity: 0.4;
+}
+
+/* Floating scroll-to-top button */
+
+.to-top {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 50;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s, color 0.15s, border-color 0.15s;
+}
+
+.to-top.visible { opacity: 1; transform: none; pointer-events: auto; }
+.to-top:hover { color: var(--text); border-color: var(--accent); }
+
+/* Input pane footer (counts) and drag & drop feedback */
+
+.pane-foot {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--panel-alt);
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pane.drag-over {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}

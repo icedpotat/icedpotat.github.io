@@ -33,6 +33,7 @@
             <li><span class="keys"><kbd>V</kbd></span><span>Toggle side-by-side / unified view</span></li>
             <li><span class="keys"><kbd>N</kbd></span><span>Jump to next change</span></li>
             <li><span class="keys"><kbd>P</kbd></span><span>Jump to previous change</span></li>
+            <li><span class="keys"><kbd>T</kbd></span><span>Scroll to top</span></li>
             <li><span class="keys"><kbd>D</kbd></span><span>Copy diff output</span></li>
             <li><span class="keys"><kbd>M</kbd></span><span>Copy merged result</span></li>
             <li><span class="keys"><kbd>?</kbd></span><span>Show/hide this panel</span></li>
@@ -63,6 +64,7 @@
           </div>
         </div>
         <textarea id="original" spellcheck="false" placeholder="Paste or load the original text…"></textarea>
+        <div class="pane-foot" id="count-original"></div>
         <input type="file" id="file-original" accept=".txt,.md,.js,.py,.json,.css,.html,.csv,.log" hidden>
       </div>
 
@@ -80,6 +82,7 @@
           </div>
         </div>
         <textarea id="changed" spellcheck="false" placeholder="Paste or load the changed text…"></textarea>
+        <div class="pane-foot" id="count-changed"></div>
         <input type="file" id="file-changed" accept=".txt,.md,.js,.py,.json,.css,.html,.csv,.log" hidden>
       </div>
     </section>
@@ -108,9 +111,17 @@
     <section class="results" id="results" hidden>
       <div class="results-head">
         <div class="stats" id="stats"></div>
-        <div class="pane-actions">
-          <button type="button" class="btn-ghost" data-copy="diff-output">Copy diff</button>
-          <button type="button" class="btn-ghost" id="download">Download diff</button>
+        <div class="results-tools">
+          <div class="change-nav" title="Jump between changes (N / P)">
+            <button type="button" class="btn-ghost" id="prev-change" aria-label="Previous change">↑</button>
+            <span class="change-counter" id="change-counter">–</span>
+            <button type="button" class="btn-ghost" id="next-change" aria-label="Next change">↓</button>
+          </div>
+          <div class="pane-actions">
+            <button type="button" class="btn-ghost" id="goto-merge" hidden>Merge ↓</button>
+            <button type="button" class="btn-ghost" data-copy="diff-output">Copy diff</button>
+            <button type="button" class="btn-ghost" id="download">Download diff</button>
+          </div>
         </div>
       </div>
       <div class="diff-view" id="diff-view"></div>
@@ -136,6 +147,8 @@
 
     <p class="empty-state" id="empty-state">Paste text on both sides, then hit Compare.</p>
   </main>
+
+  <button type="button" id="to-top" class="to-top" aria-label="Scroll to top" title="Scroll to top (T)" tabindex="-1">↑</button>
 
   <script src="app.js"></script>
 </body>

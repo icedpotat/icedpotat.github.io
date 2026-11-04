@@ -531,6 +531,20 @@ function computeStats(blocks) {
   return { additions, removals };
 }
 
+/* A "change" for navigation purposes is a whole stretch of consecutive
+   changed blocks (a hunk), not each single block. Returns [start, end] pairs
+   of block indices. */
+function computeChangeGroups(blocks) {
+  const groups = [];
+  let cur = null;
+  blocks.forEach((b, i) => {
+    if (b.type === 'equal') { cur = null; return; }
+    if (!cur) { cur = [i, i]; groups.push(cur); }
+    else cur[1] = i;
+  });
+  return groups;
+}
+
 function opsToUnifiedText(ops) {
   return ops.map((op) => {
     const prefix = op.type === 'add' ? '+ ' : op.type === 'remove' ? '- ' : '  ';
@@ -656,6 +670,7 @@ let currentBlocks = [];
 let mergeSelections = {};
 let expandedFolds = new Set();
 let changeNavPos = -1;
+let changeGroups = [];
 let comparing = false;
 
 function updateMergedOutput() {
@@ -699,7 +714,9 @@ async function runCompare() {
     currentBlocks = blocks;
     mergeSelections = {};
     expandedFolds = new Set();
+    changeGroups = computeChangeGroups(blocks);
     changeNavPos = -1;
+    updateChangeCounter();
 
     renderDiffView();
 
@@ -707,6 +724,7 @@ async function runCompare() {
     renderMergeAssistant(blocks, mergeSelections);
     updateMergedOutput();
     mergeSectionEl.hidden = !hasChanges;
+    el('goto-merge').hidden = !hasChanges;
 
     const { additions, removals } = computeStats(blocks);
     const ms = Math.round(performance.now() - t0);
@@ -719,6 +737,11 @@ async function runCompare() {
 
     resultsEl.hidden = false;
     emptyStateEl.hidden = true;
+
+    // If the results are mostly below the fold (long input boxes), bring them into view.
+    if (resultsEl.getBoundingClientRect().top > window.innerHeight * 0.7) {
+      resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   } catch (err) {
     console.error(err);
     statsEl.textContent = 'Something went wrong while comparing: ' + err.message;
@@ -774,6 +797,7 @@ el('swap').addEventListener('click', () => {
   const tmp = originalEl.value;
   originalEl.value = changedEl.value;
   changedEl.value = tmp;
+  updateCounts();
   if (lastOps) runCompare();
 });
 
@@ -781,6 +805,7 @@ document.querySelectorAll('[data-clear]').forEach((btn) => {
   btn.addEventListener('click', () => {
     const target = btn.getAttribute('data-clear');
     el(target).value = '';
+    updateCounts();
   });
 });
 
@@ -791,14 +816,39 @@ document.querySelectorAll('[data-load]').forEach((btn) => {
   });
 });
 
+function readFileInto(file, target) {
+  const reader = new FileReader();
+  reader.onload = () => { el(target).value = reader.result; updateCounts(); };
+  reader.readAsText(file);
+}
+
 ['original', 'changed'].forEach((target) => {
   el(`file-${target}`).addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => { el(target).value = reader.result; };
-    reader.readAsText(file);
+    readFileInto(file, target);
     e.target.value = '';
+  });
+
+  // Drag & drop a file onto the pane. Dropped plain text still behaves normally.
+  const pane = el(target).closest('.pane');
+  const hasFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  ['dragenter', 'dragover'].forEach((type) => {
+    pane.addEventListener(type, (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      pane.classList.add('drag-over');
+    });
+  });
+  pane.addEventListener('dragleave', (e) => {
+    if (!pane.contains(e.relatedTarget)) pane.classList.remove('drag-over');
+  });
+  pane.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    pane.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) readFileInto(file, target);
   });
 });
 
@@ -865,23 +915,37 @@ el('download-merged').addEventListener('click', () => {
    Next/previous change navigation
 --------------------------------------------------------------------- */
 
-function focusChange(step) {
-  const changeIndices = currentBlocks
-    .map((b, i) => (b.type !== 'equal' ? i : null))
-    .filter((v) => v !== null);
-  if (changeIndices.length === 0) return;
+function updateChangeCounter() {
+  const n = changeGroups.length;
+  el('change-counter').textContent = n === 0 ? '–' : `${changeNavPos < 0 ? '–' : changeNavPos + 1} / ${n}`;
+  el('prev-change').disabled = n === 0;
+  el('next-change').disabled = n === 0;
+}
 
-  changeNavPos = ((changeNavPos + step) % changeIndices.length + changeIndices.length) % changeIndices.length;
-  const target = changeIndices[changeNavPos];
-  const rows = diffViewEl.querySelectorAll(`[data-change="${target}"]`);
+function focusChange(step) {
+  const n = changeGroups.length;
+  if (n === 0) return;
+  // First press goes to the first change (or the last, when going backwards).
+  changeNavPos = changeNavPos < 0 ? (step > 0 ? 0 : n - 1) : (changeNavPos + step + n) % n;
+  updateChangeCounter();
+
+  const [from, to] = changeGroups[changeNavPos];
+  const rows = Array.from(diffViewEl.querySelectorAll('[data-change]'))
+    .filter((row) => { const i = Number(row.dataset.change); return i >= from && i <= to; });
   if (!rows.length) return;
 
   rows[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-  rows.forEach((row) => {
+  rows.slice(0, 200).forEach((row) => {
     row.classList.add('flash');
     setTimeout(() => row.classList.remove('flash'), 900);
   });
 }
+
+el('prev-change').addEventListener('click', () => focusChange(-1));
+el('next-change').addEventListener('click', () => focusChange(1));
+el('goto-merge').addEventListener('click', () => {
+  if (!mergeSectionEl.hidden) mergeSectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 
 /* ---------------------------------------------------------------------
    Help modal (shortcuts & legend)
@@ -896,6 +960,62 @@ function toggleHelp() { helpOverlayEl.hidden ? openHelp() : closeHelp(); }
 el('help-open').addEventListener('click', openHelp);
 el('help-close').addEventListener('click', closeHelp);
 helpOverlayEl.addEventListener('click', (e) => { if (e.target === helpOverlayEl) closeHelp(); });
+
+/* ---------------------------------------------------------------------
+   Input conveniences: counts, scroll-to-top, remembered options
+--------------------------------------------------------------------- */
+
+function countsText(text) {
+  if (!text) return '0 lines · 0 characters';
+  let lines = 1;
+  for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) === 10) lines++;
+  return `${lines.toLocaleString()} line${lines === 1 ? '' : 's'} · ${text.length.toLocaleString()} characters`;
+}
+
+function updateCounts() {
+  el('count-original').textContent = countsText(originalEl.value);
+  el('count-changed').textContent = countsText(changedEl.value);
+}
+
+let countsQueued = false;
+function queueCounts() {
+  if (countsQueued) return;
+  countsQueued = true;
+  requestAnimationFrame(() => { countsQueued = false; updateCounts(); });
+}
+originalEl.addEventListener('input', queueCounts);
+changedEl.addEventListener('input', queueCounts);
+
+const toTopEl = el('to-top');
+function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function updateToTop() {
+  const show = window.scrollY > 400;
+  toTopEl.classList.toggle('visible', show);
+  toTopEl.tabIndex = show ? 0 : -1;
+}
+window.addEventListener('scroll', updateToTop, { passive: true });
+toTopEl.addEventListener('click', scrollToTop);
+
+// Remember the option checkboxes between visits (silently skipped if storage is unavailable).
+const PERSIST_IDS = ['opt-whitespace', 'opt-case', 'opt-view', 'opt-fold'];
+function loadOptions() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('diffchecker.options') || '{}');
+    PERSIST_IDS.forEach((id) => { if (typeof saved[id] === 'boolean') el(id).checked = saved[id]; });
+  } catch (err) { /* storage unavailable */ }
+}
+function saveOptions() {
+  try {
+    const o = {};
+    PERSIST_IDS.forEach((id) => { o[id] = el(id).checked; });
+    localStorage.setItem('diffchecker.options', JSON.stringify(o));
+  } catch (err) { /* storage unavailable */ }
+}
+PERSIST_IDS.forEach((id) => el(id).addEventListener('change', saveOptions));
+loadOptions();
+updateCounts();
+updateToTop();
+updateChangeCounter();
 
 /* ---------------------------------------------------------------------
    Keyboard shortcuts
@@ -942,6 +1062,9 @@ document.addEventListener('keydown', (e) => {
       break;
     case 'm':
       if (!mergeSectionEl.hidden) document.querySelector('[data-copy="merged-output"]')?.click();
+      break;
+    case 't':
+      scrollToTop();
       break;
     default:
       break;

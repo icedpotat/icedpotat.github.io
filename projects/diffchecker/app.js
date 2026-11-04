@@ -1,68 +1,102 @@
 /* ---------------------------------------------------------------------
-   Myers diff algorithm (O(ND)), operating on arrays of lines.
-   No external dependencies — this is the whole diff engine.
+   Tunables
+--------------------------------------------------------------------- */
+
+const LINE_BUDGET = 16000000;      // max stored trace entries for the line-level diff
+const CHAR_BUDGET = 3000000;       // same, for character-level diffs inside a line
+const PAIR_THRESHOLD = 0.5;        // min similarity (0..1) for two lines to count as "the same line, edited"
+const ALIGN_MATRIX_LIMIT = 160000; // max removed×added lines for exact similarity alignment
+const FOLD_CONTEXT = 3;            // unchanged lines kept visible around a change
+const FOLD_MIN_HIDDEN = 5;         // don't fold fewer lines than this
+
+/* ---------------------------------------------------------------------
+   Myers diff (O(ND)) on arrays of comparable items (ints, chars, ...).
+   Memory-lean: only the diagonals that can matter are stored per step,
+   and a budget aborts hopeless inputs instead of freezing the tab.
    Reference: E. Myers, "An O(ND) Difference Algorithm and Its Variations"
 --------------------------------------------------------------------- */
 
-function myersDiff(a, b) {
+function myersCore(a, b, budget) {
   const N = a.length, M = b.length;
-  const MAX = N + M || 1;
-  const v = new Array(2 * MAX + 1).fill(0);
+  const MAX = N + M;
+  const OFF = MAX + 1;
+  const v = new Int32Array(2 * MAX + 3);
   const trace = [];
+  let stored = 0;
 
   for (let d = 0; d <= MAX; d++) {
-    trace.push(v.slice());
+    stored += 2 * d + 3;
+    if (stored > budget) return null;
+    trace.push(v.slice(OFF - d - 1, OFF + d + 2));
     for (let k = -d; k <= d; k += 2) {
       let x;
-      if (k === -d || (k !== d && v[MAX + k - 1] < v[MAX + k + 1])) {
-        x = v[MAX + k + 1];
+      if (k === -d || (k !== d && v[OFF + k - 1] < v[OFF + k + 1])) {
+        x = v[OFF + k + 1];
       } else {
-        x = v[MAX + k - 1] + 1;
+        x = v[OFF + k - 1] + 1;
       }
       let y = x - k;
       while (x < N && y < M && a[x] === b[y]) { x++; y++; }
-      v[MAX + k] = x;
-      if (x >= N && y >= M) {
-        return backtrack(trace, a, b, MAX, N, M);
-      }
+      v[OFF + k] = x;
+      if (x >= N && y >= M) return backtrackOps(trace, N, M);
     }
   }
-  return backtrack(trace, a, b, MAX, N, M);
+  return null;
 }
 
-function backtrack(trace, a, b, MAX, N, M) {
+function backtrackOps(trace, N, M) {
   let x = N, y = M;
   const ops = [];
-
   for (let d = trace.length - 1; d >= 0; d--) {
-    const v = trace[d];
+    const tv = trace[d]; // diagonal k lives at index k + d + 1
     const k = x - y;
     let prevK;
-    if (k === -d || (k !== d && v[MAX + k - 1] < v[MAX + k + 1])) {
+    if (k === -d || (k !== d && tv[k + d] < tv[k + d + 2])) {
       prevK = k + 1;
     } else {
       prevK = k - 1;
     }
-    const prevX = v[MAX + prevK];
+    const prevX = tv[prevK + d + 1];
     const prevY = prevX - prevK;
 
     while (x > prevX && y > prevY) {
-      ops.unshift({ type: 'equal', aIdx: x - 1, bIdx: y - 1 });
+      ops.push({ type: 'equal', aIdx: x - 1, bIdx: y - 1 });
       x--; y--;
     }
     if (d > 0) {
-      if (x === prevX) {
-        ops.unshift({ type: 'add', bIdx: y - 1 });
-      } else {
-        ops.unshift({ type: 'remove', aIdx: x - 1 });
-      }
+      if (x === prevX) ops.push({ type: 'add', bIdx: y - 1 });
+      else ops.push({ type: 'remove', aIdx: x - 1 });
       x = prevX; y = prevY;
     }
   }
+  ops.reverse();
   return ops;
 }
 
-/* Turn raw text into a diff op list, honoring ignore-whitespace / ignore-case. */
+/* Returns { ops, coarse }. If the inputs differ too much for the budget,
+   falls back to "everything removed, everything added" and flags it. */
+function myersDiff(a, b, budget) {
+  const N = a.length, M = b.length;
+  const fallback = (coarse) => {
+    const ops = [];
+    for (let i = 0; i < N; i++) ops.push({ type: 'remove', aIdx: i });
+    for (let j = 0; j < M; j++) ops.push({ type: 'add', bIdx: j });
+    return { ops, coarse };
+  };
+  if (N === 0 || M === 0) return fallback(false);
+  const ops = myersCore(a, b, budget);
+  return ops ? { ops, coarse: false } : fallback(true);
+}
+
+/* ---------------------------------------------------------------------
+   Line-level diff
+--------------------------------------------------------------------- */
+
+let lastDiffInfo = { aLines: 0, bLines: 0, coarse: false };
+
+/* Turn raw text into a diff op list, honoring ignore-whitespace / ignore-case.
+   Lines are interned to integers and the common head/tail is trimmed first,
+   which is what makes big, mostly-similar files fast. */
 function computeDiff(originalText, changedText, opts) {
   const splitLines = (t) => t.replace(/\r\n/g, '\n').split('\n');
   const rawA = splitLines(originalText);
@@ -75,20 +109,52 @@ function computeDiff(originalText, changedText, opts) {
     return l;
   };
 
-  const normA = rawA.map(normalize);
-  const normB = rawB.map(normalize);
+  const ids = new Map();
+  const intern = (s) => {
+    let id = ids.get(s);
+    if (id === undefined) { id = ids.size; ids.set(s, id); }
+    return id;
+  };
 
-  const ops = myersDiff(normA, normB);
+  const nA = rawA.length, nB = rawB.length;
+  const A = new Int32Array(nA);
+  const B = new Int32Array(nB);
+  for (let i = 0; i < nA; i++) A[i] = intern(normalize(rawA[i]));
+  for (let i = 0; i < nB; i++) B[i] = intern(normalize(rawB[i]));
 
-  return ops.map((op) => {
-    if (op.type === 'equal') return { type: 'equal', aLine: op.aIdx + 1, bLine: op.bIdx + 1, text: rawA[op.aIdx] };
-    if (op.type === 'remove') return { type: 'remove', aLine: op.aIdx + 1, text: rawA[op.aIdx] };
-    return { type: 'add', bLine: op.bIdx + 1, text: rawB[op.bIdx] };
-  });
+  let pre = 0;
+  while (pre < nA && pre < nB && A[pre] === B[pre]) pre++;
+  let suf = 0;
+  while (suf < nA - pre && suf < nB - pre && A[nA - 1 - suf] === B[nB - 1 - suf]) suf++;
+
+  const out = [];
+  for (let i = 0; i < pre; i++) out.push({ type: 'equal', aLine: i + 1, bLine: i + 1, text: rawA[i] });
+
+  const res = myersDiff(A.subarray(pre, nA - suf), B.subarray(pre, nB - suf), LINE_BUDGET);
+  for (const op of res.ops) {
+    if (op.type === 'equal') {
+      const ai = op.aIdx + pre;
+      out.push({ type: 'equal', aLine: ai + 1, bLine: op.bIdx + pre + 1, text: rawA[ai] });
+    } else if (op.type === 'remove') {
+      const ai = op.aIdx + pre;
+      out.push({ type: 'remove', aLine: ai + 1, text: rawA[ai] });
+    } else {
+      const bi = op.bIdx + pre;
+      out.push({ type: 'add', bLine: bi + 1, text: rawB[bi] });
+    }
+  }
+
+  for (let i = 0; i < suf; i++) {
+    const ai = nA - suf + i, bi = nB - suf + i;
+    out.push({ type: 'equal', aLine: ai + 1, bLine: bi + 1, text: rawA[ai] });
+  }
+
+  lastDiffInfo = { aLines: nA, bLines: nB, coarse: res.coarse };
+  return out;
 }
 
 /* ---------------------------------------------------------------------
-   Rendering
+   Rendering helpers
 --------------------------------------------------------------------- */
 
 function escapeHtml(s) {
@@ -99,18 +165,31 @@ function escapeHtml(s) {
 }
 
 /* Character-level diff between one removed line and one added line.
-   Character granularity (not word) is what catches a typo landing
-   inside a word instead of at a space — reusing the same Myers
-   implementation since it only needs === equality. */
+   Common head/tail are cut off as single runs first, so a long paragraph
+   with a couple of edits only diffs the stretch between the edits. */
 function charDiffPair(removeText, addText) {
-  const aTok = Array.from(removeText);
-  const bTok = Array.from(addText);
-  const ops = myersDiff(aTok, bTok);
-  return ops.map((op) => {
-    if (op.type === 'equal') return { type: 'equal', text: aTok[op.aIdx] };
-    if (op.type === 'remove') return { type: 'remove', text: aTok[op.aIdx] };
-    return { type: 'add', text: bTok[op.bIdx] };
-  });
+  const a = Array.from(removeText);
+  const b = Array.from(addText);
+  const minLen = Math.min(a.length, b.length);
+
+  let pre = 0;
+  while (pre < minLen && a[pre] === b[pre]) pre++;
+  let suf = 0;
+  while (suf < minLen - pre && a[a.length - 1 - suf] === b[b.length - 1 - suf]) suf++;
+
+  const midA = a.slice(pre, a.length - suf);
+  const midB = b.slice(pre, b.length - suf);
+
+  const out = [];
+  if (pre) out.push({ type: 'equal', text: a.slice(0, pre).join('') });
+  const { ops } = myersDiff(midA, midB, CHAR_BUDGET);
+  for (const op of ops) {
+    if (op.type === 'equal') out.push({ type: 'equal', text: midA[op.aIdx] });
+    else if (op.type === 'remove') out.push({ type: 'remove', text: midA[op.aIdx] });
+    else out.push({ type: 'add', text: midB[op.bIdx] });
+  }
+  if (suf) out.push({ type: 'equal', text: a.slice(a.length - suf).join('') });
+  return out;
 }
 
 /* Collapse consecutive same-type character ops into runs, so "3 chars
@@ -163,11 +242,128 @@ function segmentRuns(runs) {
   return segments;
 }
 
+/* ---------------------------------------------------------------------
+   Matching edited lines (the "this line became that line" problem)
+
+   After the exact line diff, a changed region has some removed lines and
+   some added lines. Instead of pairing them by position, each removed line
+   is matched to the most similar added line, in order, only if they are
+   actually similar. Everything else stays a plain removal or addition —
+   so a line replaced by a whole paragraph reads as exactly that.
+--------------------------------------------------------------------- */
+
+function gramsOf(text) {
+  const map = new Map();
+  let n = 0;
+  if (text.length === 1) {
+    map.set(text, 1); n = 1;
+  } else if (text.length > 1) {
+    n = text.length - 1;
+    for (let i = 0; i < n; i++) {
+      const g = text.slice(i, i + 2);
+      map.set(g, (map.get(g) || 0) + 1);
+    }
+  }
+  return { map, n };
+}
+
+/* Dice coefficient over character bigrams: tolerant of typos inside words. */
+function similarity(x, y) {
+  if (x.n === 0 || y.n === 0) return 0;
+  const small = x.map.size <= y.map.size ? x.map : y.map;
+  const big = small === x.map ? y.map : x.map;
+  let inter = 0;
+  for (const [g, c] of small) {
+    const c2 = big.get(g);
+    if (c2) inter += c < c2 ? c : c2;
+  }
+  return (2 * inter) / (x.n + y.n);
+}
+
+/* Order-preserving best matching (like LCS, but weighted by similarity). */
+function alignDP(gr, ga) {
+  const m = gr.length, n = ga.length;
+  const sim = new Float32Array(m * n);
+  for (let i = 0; i < m; i++) {
+    for (let j = 0; j < n; j++) sim[i * n + j] = similarity(gr[i], ga[j]);
+  }
+
+  const W = n + 1;
+  const dir = new Uint8Array((m + 1) * W); // 1 = pair, 2 = skip removed line, 3 = skip added line
+  let prev = new Float64Array(W);
+  let cur = new Float64Array(W);
+
+  for (let i = 1; i <= m; i++) {
+    cur[0] = 0;
+    for (let j = 1; j <= n; j++) {
+      let best = prev[j], d = 2;
+      if (cur[j - 1] > best) { best = cur[j - 1]; d = 3; }
+      const s = sim[(i - 1) * n + (j - 1)];
+      if (s >= PAIR_THRESHOLD && prev[j - 1] + s > best) { best = prev[j - 1] + s; d = 1; }
+      cur[j] = best;
+      dir[i * W + j] = d;
+    }
+    const t = prev; prev = cur; cur = t;
+  }
+
+  const pairs = [];
+  let i = m, j = n;
+  while (i > 0 && j > 0) {
+    const d = dir[i * W + j];
+    if (d === 1) { pairs.push([i - 1, j - 1]); i--; j--; }
+    else if (d === 2) i--;
+    else j--;
+  }
+  pairs.reverse();
+  return pairs;
+}
+
+/* Cheap fallback for huge changed regions: sliding-window greedy matching. */
+function alignGreedy(gr, ga) {
+  const WINDOW = 40;
+  const pairs = [];
+  let j0 = 0;
+  for (let i = 0; i < gr.length; i++) {
+    let best = -1, bj = -1;
+    const hi = Math.min(ga.length, j0 + WINDOW);
+    for (let j = j0; j < hi; j++) {
+      const s = similarity(gr[i], ga[j]);
+      if (s >= PAIR_THRESHOLD && s > best) { best = s; bj = j; }
+    }
+    if (bj >= 0) { pairs.push([i, bj]); j0 = bj + 1; }
+  }
+  return pairs;
+}
+
+function pushPair(blocks, remove, add) {
+  const runs = mergeRuns(charDiffPair(remove.text, add.text));
+  blocks.push({ type: 'pair', remove, add, runs, segments: segmentRuns(runs) });
+}
+
+function alignRegion(removes, adds, blocks) {
+  const m = removes.length, n = adds.length;
+  if (m === 0) { for (const op of adds) blocks.push({ type: 'add', op }); return; }
+  if (n === 0) { for (const op of removes) blocks.push({ type: 'remove', op }); return; }
+
+  const gr = removes.map((o) => gramsOf(o.text));
+  const ga = adds.map((o) => gramsOf(o.text));
+  const pairs = (m * n <= ALIGN_MATRIX_LIMIT) ? alignDP(gr, ga) : alignGreedy(gr, ga);
+
+  let ri = 0, aj = 0;
+  for (const [pi, pj] of pairs) {
+    for (; ri < pi; ri++) blocks.push({ type: 'remove', op: removes[ri] });
+    for (; aj < pj; aj++) blocks.push({ type: 'add', op: adds[aj] });
+    pushPair(blocks, removes[pi], adds[pj]);
+    ri = pi + 1; aj = pj + 1;
+  }
+  for (; ri < m; ri++) blocks.push({ type: 'remove', op: removes[ri] });
+  for (; aj < n; aj++) blocks.push({ type: 'add', op: adds[aj] });
+}
+
 /* Group raw line ops into equal / lone-remove / lone-add / paired blocks.
-   A "pair" is a removed line matched by index against an added line
-   within the same changed run — that's the "this line became that line"
-   case where character-level highlighting applies. Runs and segments
-   are computed once here and reused by rendering, stats, and merging. */
+   A whole changed region (any mix of removes and adds between two equal
+   stretches) is aligned together, then runs and segments are computed once
+   and reused by rendering, stats, and merging. */
 function groupOps(ops) {
   const blocks = [];
   let i = 0;
@@ -180,20 +376,18 @@ function groupOps(ops) {
     }
     const removes = [];
     const adds = [];
-    while (i < ops.length && ops[i].type === 'remove') { removes.push(ops[i]); i++; }
-    while (i < ops.length && ops[i].type === 'add') { adds.push(ops[i]); i++; }
-
-    const pairCount = Math.min(removes.length, adds.length);
-    for (let j = 0; j < pairCount; j++) {
-      const runs = mergeRuns(charDiffPair(removes[j].text, adds[j].text));
-      const segments = segmentRuns(runs);
-      blocks.push({ type: 'pair', remove: removes[j], add: adds[j], runs, segments });
+    while (i < ops.length && ops[i].type !== 'equal') {
+      (ops[i].type === 'remove' ? removes : adds).push(ops[i]);
+      i++;
     }
-    for (let j = pairCount; j < removes.length; j++) blocks.push({ type: 'remove', op: removes[j] });
-    for (let j = pairCount; j < adds.length; j++) blocks.push({ type: 'add', op: adds[j] });
+    alignRegion(removes, adds, blocks);
   }
   return blocks;
 }
+
+/* ---------------------------------------------------------------------
+   Rendering
+--------------------------------------------------------------------- */
 
 function lineRow(cls, gutter, marker, contentHtml, changeIndex) {
   const attr = changeIndex === undefined ? '' : ` data-change="${changeIndex}"`;
@@ -204,9 +398,44 @@ function lineRow(cls, gutter, marker, contentHtml, changeIndex) {
   </div>`;
 }
 
-function renderUnified(blocks) {
+function foldRow(item) {
+  const count = item.end - item.start;
+  return `<div class="diff-fold" data-fold="${item.start}"><button type="button" class="fold-btn">⋯ ${count.toLocaleString()} unchanged line${count === 1 ? '' : 's'} — click to expand</button></div>`;
+}
+
+/* Decide what to show: every changed block, plus a few unchanged lines of
+   context around each change. Long unchanged stretches become a fold. */
+function buildPlan(blocks, fold, expanded) {
+  const plan = [];
+  const n = blocks.length;
+  let i = 0;
+  while (i < n) {
+    if (blocks[i].type !== 'equal') { plan.push({ kind: 'block', i }); i++; continue; }
+    let j = i;
+    while (j < n && blocks[j].type === 'equal') j++;
+
+    const leading = i === 0, trailing = j === n;
+    const hideStart = leading ? i : i + FOLD_CONTEXT;
+    const hideEnd = trailing ? j : j - FOLD_CONTEXT;
+    const canFold = fold && (hideEnd - hideStart) >= FOLD_MIN_HIDDEN && !expanded.has(hideStart);
+
+    if (!canFold) {
+      for (let k = i; k < j; k++) plan.push({ kind: 'block', i: k });
+    } else {
+      for (let k = i; k < hideStart; k++) plan.push({ kind: 'block', i: k });
+      plan.push({ kind: 'fold', start: hideStart, end: hideEnd });
+      for (let k = hideEnd; k < j; k++) plan.push({ kind: 'block', i: k });
+    }
+    i = j;
+  }
+  return plan;
+}
+
+function renderUnified(blocks, plan) {
   const rows = [];
-  for (let i = 0; i < blocks.length; i++) {
+  for (const it of plan) {
+    if (it.kind === 'fold') { rows.push(foldRow(it)); continue; }
+    const i = it.i;
     const b = blocks[i];
     if (b.type === 'equal') {
       rows.push(lineRow('equal', b.aLine, ' ', escapeHtml(b.text) || '&nbsp;'));
@@ -222,42 +451,62 @@ function renderUnified(blocks) {
   return `<div class="diff-unified">${rows.join('')}</div>`;
 }
 
-/* Side-by-side: equal lines and paired changed lines sit on the same
-   row in both columns; unmatched removes/adds get a blank on the
-   opposite side. */
-function renderSideBySide(blocks) {
-  const left = [];
-  const right = [];
+const sbsRow = (left, right) => `<div class="sbs-row">${left}${right}</div>`;
 
-  for (let i = 0; i < blocks.length; i++) {
+/* Side-by-side: every row is a real two-cell grid row, so both sides always
+   line up even when one side wraps to more lines. Equal lines and edited
+   line pairs share a row; leftover removed/added lines between them are
+   zipped next to each other (blank where one side runs out). */
+function renderSideBySide(blocks, plan) {
+  const rows = [];
+  const blank = () => lineRow('blank', '', '', '&nbsp;');
+  let k = 0;
+
+  while (k < plan.length) {
+    const it = plan[k];
+    if (it.kind === 'fold') { rows.push(foldRow(it)); k++; continue; }
+
+    const i = it.i;
     const b = blocks[i];
     if (b.type === 'equal') {
-      left.push(lineRow('equal', b.aLine, '', escapeHtml(b.text) || '&nbsp;'));
-      right.push(lineRow('equal', b.bLine, '', escapeHtml(b.text) || '&nbsp;'));
+      const html = escapeHtml(b.text) || '&nbsp;';
+      rows.push(sbsRow(lineRow('equal', b.aLine, '', html), lineRow('equal', b.bLine, '', html)));
+      k++;
     } else if (b.type === 'pair') {
-      left.push(lineRow('pair-remove', b.remove.aLine, '−', renderRunsForSide(b.runs, 'remove'), i));
-      right.push(lineRow('pair-add', b.add.bLine, '+', renderRunsForSide(b.runs, 'add'), i));
-    } else if (b.type === 'remove') {
-      left.push(lineRow('remove', b.op.aLine, '−', escapeHtml(b.op.text) || '&nbsp;', i));
-      right.push(lineRow('blank', '', '', '&nbsp;'));
-    } else if (b.type === 'add') {
-      left.push(lineRow('blank', '', '', '&nbsp;'));
-      right.push(lineRow('add', b.op.bLine, '+', escapeHtml(b.op.text) || '&nbsp;', i));
+      rows.push(sbsRow(
+        lineRow('pair-remove', b.remove.aLine, '−', renderRunsForSide(b.runs, 'remove'), i),
+        lineRow('pair-add', b.add.bLine, '+', renderRunsForSide(b.runs, 'add'), i)
+      ));
+      k++;
+    } else {
+      const rem = [];
+      const add = [];
+      while (k < plan.length && plan[k].kind === 'block') {
+        const idx = plan[k].i;
+        const bb = blocks[idx];
+        if (bb.type === 'remove') rem.push({ b: bb, i: idx });
+        else if (bb.type === 'add') add.push({ b: bb, i: idx });
+        else break;
+        k++;
+      }
+      const len = Math.max(rem.length, add.length);
+      for (let j = 0; j < len; j++) {
+        const l = rem[j]
+          ? lineRow('remove', rem[j].b.op.aLine, '−', escapeHtml(rem[j].b.op.text) || '&nbsp;', rem[j].i)
+          : blank();
+        const r = add[j]
+          ? lineRow('add', add[j].b.op.bLine, '+', escapeHtml(add[j].b.op.text) || '&nbsp;', add[j].i)
+          : blank();
+        rows.push(sbsRow(l, r));
+      }
     }
   }
-
-  return `<div class="diff-sbs">
-    <div class="side">${left.join('')}</div>
-    <div class="side">${right.join('')}</div>
-  </div>`;
+  return `<div class="diff-sbs">${rows.join('')}</div>`;
 }
 
 /* Count distinct changed CHUNKS, not raw lines: a contiguous run of
    inserted/deleted lines is one chunk, and within a paired line, each
-   contiguous run of inserted/deleted characters is one chunk. This is
-   what "N removed, M added" should mean for a diff tool — a paragraph
-   with a single typo should read as a couple of small chunks, not as
-   "1 line removed, 1 line added". */
+   contiguous run of inserted/deleted characters is one chunk. */
 function computeStats(blocks) {
   let additions = 0, removals = 0;
   let i = 0;
@@ -293,12 +542,6 @@ function opsToUnifiedText(ops) {
    Merge assistant — per-chunk "keep original / keep changed / keep both"
 --------------------------------------------------------------------- */
 
-function blockTexts(b) {
-  if (b.type === 'remove') return { originalText: b.op.text, changedText: '' };
-  if (b.type === 'add') return { originalText: '', changedText: b.op.text };
-  return { originalText: b.text, changedText: b.text };
-}
-
 /* What text a single change segment resolves to under a given choice. */
 function segmentChoiceText(seg, choice) {
   if (choice === 'original') return seg.removeText;
@@ -311,24 +554,22 @@ function buildMergedText(blocks, selections) {
   blocks.forEach((b, i) => {
     if (b.type === 'equal') {
       lines.push(b.text);
-      return;
-    }
-    if (b.type === 'pair') {
+    } else if (b.type === 'pair') {
       const line = b.segments.map((seg, segIndex) => {
         if (seg.type === 'equal') return seg.text;
         const choice = selections[`${i}:${segIndex}`] || 'changed';
         return segmentChoiceText(seg, choice);
       }).join('');
       lines.push(line);
-      return;
+    } else {
+      // A lone removed line only exists in the original, a lone added line
+      // only in the changed text — so "keep" is a yes/no on the whole line.
+      const choice = selections[String(i)] || 'changed';
+      const keepOriginal = choice === 'original' || choice === 'both';
+      const keepChanged = choice === 'changed' || choice === 'both';
+      if (b.type === 'remove' && keepOriginal) lines.push(b.op.text);
+      if (b.type === 'add' && keepChanged) lines.push(b.op.text);
     }
-    const { originalText, changedText } = blockTexts(b);
-    const choice = selections[String(i)] || 'changed';
-    let text;
-    if (choice === 'original') text = originalText;
-    else if (choice === 'changed') text = changedText;
-    else text = [originalText, changedText].filter((t) => t !== '').join('\n');
-    if (text !== '') lines.push(text);
   });
   return lines.join('\n');
 }
@@ -336,8 +577,7 @@ function buildMergedText(blocks, selections) {
 /* A paired line's card: the line rendered inline, with each individual
    change as a clickable chip. Clicking a chip cycles it through
    changed → original → both, independently of every other chip on
-   the line — this is the per-change granularity a whole-line decision
-   can't give you. */
+   the line. */
 function renderPairMergeCard(b, blockIndex, selections) {
   const parts = b.segments.map((seg, segIndex) => {
     if (seg.type === 'equal') return escapeHtml(seg.text);
@@ -355,21 +595,27 @@ function renderPairMergeCard(b, blockIndex, selections) {
 /* A whole-line addition or removal: there's nothing to compare within
    it, so it's a single three-way choice rather than a chip. */
 function renderLoneMergeCard(b, blockIndex, selections) {
-  const { originalText, changedText } = blockTexts(b);
   const key = String(blockIndex);
   const choice = selections[key] || 'changed';
   const choiceBtn = (val, label) =>
     `<button type="button" class="merge-choice ${choice === val ? 'active' : ''}" data-key="${key}" data-choice="${val}">${label}</button>`;
 
+  const lineHtml = (text) => text === '' ? '<span class="merge-empty">(empty line)</span>' : escapeHtml(text);
+  const nothing = '<span class="merge-empty">— nothing —</span>';
+  const originalHtml = b.type === 'remove' ? lineHtml(b.op.text) : nothing;
+  const changedHtml = b.type === 'add' ? lineHtml(b.op.text) : nothing;
+  const lineNo = b.type === 'remove' ? `Line ${b.op.aLine} (removed)` : `Line ${b.op.bLine} (added)`;
+
   return `<div class="merge-card">
+    <div class="merge-line-label">${lineNo}</div>
     <div class="merge-card-cols">
       <div class="merge-col rem">
         <span class="merge-col-label">Original</span>
-        ${originalText === '' ? '<span class="merge-empty">— nothing —</span>' : escapeHtml(originalText)}
+        ${originalHtml}
       </div>
       <div class="merge-col add">
         <span class="merge-col-label">Changed</span>
-        ${changedText === '' ? '<span class="merge-empty">— nothing —</span>' : escapeHtml(changedText)}
+        ${changedHtml}
       </div>
     </div>
     <div class="merge-choices">
@@ -381,16 +627,15 @@ function renderLoneMergeCard(b, blockIndex, selections) {
 }
 
 function renderMergeAssistant(blocks, selections) {
-  const cards = blocks
-    .map((b, i) => {
-      if (b.type === 'equal') return '';
-      if (b.type === 'pair') return renderPairMergeCard(b, i, selections);
-      return renderLoneMergeCard(b, i, selections);
-    })
-    .filter(Boolean);
+  const cards = [];
+  blocks.forEach((b, i) => {
+    if (b.type === 'equal') return;
+    cards.push(b.type === 'pair' ? renderPairMergeCard(b, i, selections) : renderLoneMergeCard(b, i, selections));
+  });
   el('merge-list').innerHTML = cards.join('') || '<p class="merge-empty-state">No differences to merge.</p>';
 }
 
+// @@UI-START
 /* ---------------------------------------------------------------------
    UI wiring
 --------------------------------------------------------------------- */
@@ -409,41 +654,95 @@ const mergedOutputEl = el('merged-output');
 let lastOps = null;
 let currentBlocks = [];
 let mergeSelections = {};
+let expandedFolds = new Set();
+let changeNavPos = -1;
+let comparing = false;
 
 function updateMergedOutput() {
   mergedOutputEl.value = buildMergedText(currentBlocks, mergeSelections);
 }
 
-function runCompare() {
-  const opts = {
-    ignoreWhitespace: el('opt-whitespace').checked,
-    ignoreCase: el('opt-case').checked,
-  };
-  const ops = computeDiff(originalEl.value, changedEl.value, opts);
-  lastOps = ops;
+function renderDiffView() {
+  if (!currentBlocks.length) return;
+  const hasChanges = currentBlocks.some((b) => b.type !== 'equal');
+  if (!hasChanges) {
+    diffViewEl.innerHTML = '<p class="identical-note">The two texts are identical.</p>';
+    return;
+  }
+  const plan = buildPlan(currentBlocks, el('opt-fold').checked, expandedFolds);
+  diffViewEl.innerHTML = el('opt-view').checked
+    ? renderSideBySide(currentBlocks, plan)
+    : renderUnified(currentBlocks, plan);
+}
 
-  const blocks = groupOps(ops);
-  currentBlocks = blocks;
-  mergeSelections = {};
-  changeNavPos = -1;
+async function runCompare() {
+  if (comparing) return;
+  comparing = true;
 
-  const sideBySide = el('opt-view').checked;
-  diffViewEl.innerHTML = sideBySide ? renderSideBySide(blocks) : renderUnified(blocks);
+  const btn = el('compare');
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Comparing…';
+  // Let the browser paint the "Comparing…" state before the heavy work starts.
+  await new Promise((resolve) => setTimeout(resolve, 30));
 
-  const { additions, removals } = computeStats(blocks);
-  statsEl.innerHTML = `<span class="add-count">+${additions}</span><span class="rem-count">−${removals}</span>`;
+  try {
+    const t0 = performance.now();
+    const opts = {
+      ignoreWhitespace: el('opt-whitespace').checked,
+      ignoreCase: el('opt-case').checked,
+    };
+    const ops = computeDiff(originalEl.value, changedEl.value, opts);
+    lastOps = ops;
 
-  const hasChanges = blocks.some((b) => b.type !== 'equal');
-  renderMergeAssistant(blocks, mergeSelections);
-  updateMergedOutput();
-  mergeSectionEl.hidden = !hasChanges;
+    const blocks = groupOps(ops);
+    currentBlocks = blocks;
+    mergeSelections = {};
+    expandedFolds = new Set();
+    changeNavPos = -1;
 
-  resultsEl.hidden = false;
-  emptyStateEl.hidden = true;
+    renderDiffView();
+
+    const hasChanges = blocks.some((b) => b.type !== 'equal');
+    renderMergeAssistant(blocks, mergeSelections);
+    updateMergedOutput();
+    mergeSectionEl.hidden = !hasChanges;
+
+    const { additions, removals } = computeStats(blocks);
+    const ms = Math.round(performance.now() - t0);
+    let html = `<span class="add-count">+${additions}</span><span class="rem-count">−${removals}</span>`;
+    html += `<span class="meta">${lastDiffInfo.aLines.toLocaleString()} → ${lastDiffInfo.bLines.toLocaleString()} lines · ${ms} ms</span>`;
+    if (lastDiffInfo.coarse) {
+      html += '<span class="warn">The texts differ so much that lines could only be matched roughly.</span>';
+    }
+    statsEl.innerHTML = html;
+
+    resultsEl.hidden = false;
+    emptyStateEl.hidden = true;
+  } catch (err) {
+    console.error(err);
+    statsEl.textContent = 'Something went wrong while comparing: ' + err.message;
+    resultsEl.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+    comparing = false;
+  }
 }
 
 el('compare').addEventListener('click', runCompare);
-el('opt-view').addEventListener('change', () => { if (lastOps) runCompare(); });
+el('opt-view').addEventListener('change', () => { if (lastOps) renderDiffView(); });
+el('opt-fold').addEventListener('change', () => {
+  expandedFolds = new Set();
+  if (lastOps) renderDiffView();
+});
+
+diffViewEl.addEventListener('click', (e) => {
+  const fold = e.target.closest('[data-fold]');
+  if (!fold) return;
+  expandedFolds.add(Number(fold.dataset.fold));
+  renderDiffView();
+});
 
 el('merge-list').addEventListener('click', (e) => {
   const chip = e.target.closest('.merge-chip');
@@ -452,7 +751,10 @@ el('merge-list').addEventListener('click', (e) => {
     const order = ['changed', 'original', 'both'];
     const current = mergeSelections[key] || 'changed';
     mergeSelections[key] = order[(order.indexOf(current) + 1) % order.length];
-    renderMergeAssistant(currentBlocks, mergeSelections);
+    // Only re-render the one card that changed (keeps huge merges snappy).
+    const blockIndex = Number(key.split(':')[0]);
+    const card = chip.closest('.merge-card');
+    card.outerHTML = renderPairMergeCard(currentBlocks[blockIndex], blockIndex, mergeSelections);
     updateMergedOutput();
     return;
   }
@@ -562,8 +864,6 @@ el('download-merged').addEventListener('click', () => {
 /* ---------------------------------------------------------------------
    Next/previous change navigation
 --------------------------------------------------------------------- */
-
-let changeNavPos = -1;
 
 function focusChange(step) {
   const changeIndices = currentBlocks

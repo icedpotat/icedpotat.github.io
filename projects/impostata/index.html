@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1b1b">
+<title>Impostata</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Crect width='16' height='16' fill='%231b1b1b'/%3E%3Crect x='4' y='2' width='8' height='10' fill='%23ff3cac'/%3E%3Crect x='6' y='4' width='5' height='3' fill='%2300fff0'/%3E%3Crect x='4' y='12' width='3' height='2' fill='%23ff3cac'/%3E%3Crect x='9' y='12' width='3' height='2' fill='%23ff3cac'/%3E%3C/svg%3E">
+<style>
+  @font-face { font-family: 'Pixel'; src: url('press_start_2p.ttf') format('truetype'); font-display: swap; }
+  :root {
+    --bg: #1b1b1b; --panel: #262626; --panel-2: #303030; --line: #444;
+    --text: #fff; --dim: #a8a8a8;
+    --pink: #ff3cac; --cyan: #00fff0; --yellow: #fad02e; --red: #ff5a5a; --green: #6fdd85;
+    --pixel: 'Pixel', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font-family: var(--pixel); font-size: 12px; line-height: 1.7; min-height: 100vh; min-height: 100dvh; }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 16px 16px 40px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 18px; }
+  .top a { color: var(--dim); text-decoration: none; font-size: 10px; }
+  .top a:hover { color: var(--text); }
+  h1 { font-size: 20px; margin: 4px 0 18px; color: var(--yellow); text-shadow: 3px 3px 0 var(--pink); letter-spacing: 1px; text-align: center; }
+  h2 { font-size: 13px; margin: 0 0 12px; color: var(--cyan); }
+  .panel { background: var(--panel); border: 3px solid var(--line); box-shadow: 4px 4px 0 #000; padding: 14px; margin-bottom: 16px; }
+  button, .btn {
+    font-family: var(--pixel); font-size: 11px; color: var(--text); background: var(--panel-2);
+    border: 3px solid var(--text); box-shadow: 3px 3px 0 #000; padding: 10px 12px; cursor: pointer;
+    text-transform: none; line-height: 1.4; touch-action: manipulation; user-select: none;
+  }
+  button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+  button:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+  button.primary { background: var(--pink); border-color: #fff; }
+  button.accent { background: #0b5f5c; border-color: var(--cyan); }
+  button.block { display: block; width: 100%; margin-top: 10px; }
+  button.icon { padding: 6px 9px; font-size: 13px; }
+  button[disabled] { opacity: .35; cursor: default; }
+  input[type=text], input[type=number] {
+    font-family: var(--pixel); font-size: 12px; color: var(--text); background: #111; border: 3px solid var(--line);
+    padding: 9px; width: 100%; border-radius: 0;
+  }
+  input:focus { outline: none; border-color: var(--cyan); }
+  input[type=range] { width: 100%; accent-color: var(--pink); }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .between { justify-content: space-between; }
+  .dim { color: var(--dim); }
+  .small { font-size: 10px; }
+  [hidden] { display: none !important; }
+
+  /* setup */
+  .players { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 12px; }
+  .slot { background: #111; border: 3px solid var(--line); padding: 8px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: none; font-size: 10px; }
+  .slot:hover { border-color: var(--cyan); }
+  .roles { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px 10px; align-items: center; }
+  .roles .n { min-width: 2.2em; text-align: center; font-size: 14px; }
+  .r-imp { color: var(--red); } .r-und { color: var(--yellow); } .r-crew { color: var(--cyan); }
+  .group-pill { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 3px solid; padding: 8px 10px; margin-top: 10px; }
+
+  /* reveal */
+  .who { text-align: center; font-size: 14px; color: var(--yellow); margin: 8px 0 16px; white-space: pre-line; }
+  .card {
+    width: 100%; aspect-ratio: 3 / 4; max-height: 52vh; margin: 0 auto; display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 18px; border: 4px solid #fff; box-shadow: 6px 6px 0 #000; cursor: pointer; user-select: none;
+    -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none; white-space: pre-line; font-size: 14px;
+  }
+  .card.back { background: repeating-linear-gradient(45deg, #3a0f2a 0 12px, #4a1336 12px 24px); color: var(--pink); }
+  .card.front { background: #0f2f2e; color: var(--cyan); font-size: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 10px; }
+  .gcard { aspect-ratio: 3 / 4; font-size: 20px; color: var(--pink); background: repeating-linear-gradient(45deg, #3a0f2a 0 8px, #4a1336 8px 16px); }
+  .gcard.taken { background: #222; color: #555; border-color: #555; }
+
+  /* voting */
+  .counts { display: flex; justify-content: space-around; text-align: center; margin-bottom: 8px; }
+  .counts b { display: block; font-size: 16px; }
+  .vote-list button { display: block; width: 100%; margin-top: 8px; text-align: left; }
+  .result { white-space: pre-line; text-align: center; font-size: 13px; }
+
+  /* dialogs */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.72); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+  .dialog { background: var(--panel); border: 4px solid #fff; box-shadow: 6px 6px 0 #000; padding: 16px; width: 100%; max-width: 440px; max-height: 90vh; overflow: auto; }
+  .dialog .body { white-space: pre-line; margin: 0 0 12px; }
+  .dialog .btns { display: flex; gap: 10px; margin-top: 14px; }
+  .dialog .btns button { flex: 1; }
+  .field { margin: 10px 0; }
+  .field label { display: block; margin-bottom: 6px; font-size: 10px; color: var(--dim); }
+  .radios { display: flex; gap: 6px; flex-wrap: wrap; }
+  .radios button.on { background: var(--pink); }
+  .glist .group-pill { cursor: pointer; }
+  .prow { display: flex; gap: 6px; margin-top: 6px; }
+  .prow button { flex: none; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #000; border: 3px solid var(--yellow); padding: 10px 14px; z-index: 60; max-width: calc(100% - 32px); text-align: center; font-size: 10px; }
+  @media (max-width: 380px) { body { font-size: 11px; } h1 { font-size: 17px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="../../index.html">&larr; Alle Tools</a>
+    <div class="row">
+      <button class="icon" id="btnRoles" title="Verbleibende Rollen" hidden>?</button>
+      <button class="icon" id="btnSettings" title="Einstellungen">⚙</button>
+    </div>
+  </div>
+  <h1>IMPOSTATA</h1>
+
+  <!-- SETUP -->
+  <section id="setup">
+    <div class="panel">
+      <div class="row between"><h2 id="playerCountLabel">3 Spieler</h2><button id="btnGroups">Gruppen</button></div>
+      <input type="range" id="playerCount" min="3" max="20" value="3" aria-label="Spieleranzahl">
+      <div id="groupBox"></div>
+      <div class="players" id="players"></div>
+      <p class="dim small" style="margin:10px 0 0">Tippe auf einen Namen, um ihn zu ändern.</p>
+    </div>
+    <div class="panel">
+      <h2>Rollen</h2>
+      <div class="roles">
+        <span class="r-imp">Impostor</span><button class="icon" data-role="imp" data-d="-1">–</button><span class="n" id="nImp">1</span><button class="icon" data-role="imp" data-d="1">+</button>
+        <span class="r-und">Undercover</span><button class="icon" data-role="und" data-d="-1">–</button><span class="n" id="nUnd">0</span><button class="icon" data-role="und" data-d="1">+</button>
+        <span class="r-crew">Crew</span><span></span><span class="n" id="nCrew">2</span><span></span>
+      </div>
+    </div>
+    <button class="primary block" id="btnStart">Spiel starten</button>
+  </section>
+
+  <!-- PLAYING -->
+  <section id="play" hidden>
+    <div class="who" id="who"></div>
+    <div id="revealCard">
+      <div class="card back" id="card">Tippe, um deine Rolle zu sehen</div>
+    </div>
+    <div id="revealGrid" hidden><div class="grid" id="grid"></div></div>
+    <button class="primary block" id="btnNext">Weitergeben</button>
+  </section>
+
+  <!-- VOTING -->
+  <section id="vote" hidden>
+    <div class="panel">
+      <div class="counts" id="remaining">
+        <div class="r-imp"><b id="vImp">0</b>Impostor</div>
+        <div class="r-und"><b id="vUnd">0</b>Undercover</div>
+        <div class="r-crew"><b id="vCrew">0</b>Crew</div>
+      </div>
+    </div>
+    <h2 style="text-align:center">Stimmt ab, wer der Impostor ist!</h2>
+    <div class="vote-list" id="voteList"></div>
+  </section>
+
+  <!-- RESULT -->
+  <section id="result" hidden>
+    <div class="panel"><p class="result" id="resultText"></p></div>
+    <div id="guessBox" hidden class="panel">
+      <div class="field"><label for="guess">Impostor, rate das Crew-Wort:</label><input type="text" id="guess" autocomplete="off" autocapitalize="off"></div>
+      <button class="primary block" id="btnGuess">Bestätigen</button>
+    </div>
+    <button class="block" id="btnContinue">Weiter zur nächsten Abstimmung</button>
+    <button class="primary block" id="btnRestart" hidden>Neues Spiel starten</button>
+  </section>
+</div>
+
+<div id="dialogs"></div>
+<input type="file" id="importFile" accept=".txt,.csv,text/plain,text/csv" hidden>
+
+<script src="words.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bullion Ledger</title>
+<title>Metal Holdings</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='44' fill='%23c9a227'/%3E%3Ccircle cx='50' cy='50' r='44' fill='none' stroke='%238a7224' stroke-width='4'/%3E%3Ctext x='50' y='66' font-size='46' text-anchor='middle' font-family='Georgia,serif' fill='%231a1409'%3EB%3C/text%3E%3C/svg%3E">
 <style>
   :root{
@@ -216,7 +216,8 @@
 <!-- ============ LOCK SCREEN ============ -->
 <div id="lockScreen">
   <div class="lock-card">
-    <h1 class="lock-mark">Bullion Ledger</h1>
+    <h1 class="lock-mark">Metal Holdings</h1>
+    <p style="margin:0 0 10px;font-size:13px;"><a href="../../index.html" style="color:inherit;opacity:.7;">&larr; All tools</a></p>
     <p class="lock-sub" id="lockSubtitle">A private ledger for your precious metal holdings.</p>
 
     <div class="vault-warning" id="setupWarning">
@@ -267,7 +268,8 @@
 <div class="wrap hidden" id="app">
   <header>
     <div class="brand">
-      <h1>Bullion Ledger</h1>
+      <h1>Metal Holdings</h1>
+      <p style="margin:0 0 4px;font-size:13px;"><a href="../../index.html" style="color:inherit;opacity:.7;">&larr; All tools</a></p>
       <p>Private ledger — decrypted only in this browser tab.</p>
     </div>
     <div class="header-actions">
@@ -377,6 +379,17 @@
   function defaultSettings(){
     return { premiums: { ingot: 0, bullion: 5, other: 0 } };
   }
+  function normalizeSettings(s){
+    var d = defaultSettings();
+    if (!s || typeof s !== 'object') return d;
+    var p = (s.premiums && typeof s.premiums === 'object') ? s.premiums : {};
+    Object.keys(d.premiums).forEach(function(k){
+      var v = parseFloat(p[k]);
+      d.premiums[k] = isFinite(v) ? v : d.premiums[k];
+    });
+    Object.keys(s).forEach(function(k){ if (k !== 'premiums') d[k] = s[k]; });
+    return d;
+  }
 
   /* ======================= crypto helpers ======================= */
   function bytesToBase64(bytes){
@@ -447,7 +460,7 @@
     var data = await decryptJSON(key, iv, ciphertext); // throws on wrong password
     vaultKey = key; vaultSalt = salt;
     holdings = data.holdings || [];
-    settings = data.settings || defaultSettings();
+    settings = normalizeSettings(data.settings);
     history = data.history || [];
   }
 
@@ -464,7 +477,7 @@
 
   async function importSaveCode(code, password){
     code = code.trim();
-    if (code.indexOf('BL1-') !== 0) throw new Error('That does not look like a Bullion Ledger save code.');
+    if (code.indexOf('BL1-') !== 0) throw new Error('That does not look like a Metal Holdings save code.');
     var bytes = base64ToBytes(code.slice(4));
     var salt = bytes.slice(1, 17);
     var iv = bytes.slice(17, 29);
@@ -473,7 +486,7 @@
     var data = await decryptJSON(key, iv, ciphertext); // throws on wrong password
     vaultKey = key; vaultSalt = salt;
     holdings = data.holdings || [];
-    settings = data.settings || defaultSettings();
+    settings = normalizeSettings(data.settings);
     history = data.history || [];
     await saveVault();
   }
@@ -930,12 +943,20 @@
     });
     document.getElementById('lockNowBtn').addEventListener('click', lockNow);
 
-    document.getElementById('premiumList').addEventListener('change', function(e){
+    var premiumSaveTimer = null;
+    function applyPremium(e, final){
       if (!e.target.classList.contains('premium-input')) return;
       var f = e.target.dataset.form;
-      settings.premiums[f] = parseFloat(e.target.value) || 0;
-      saveVault().then(renderAll);
-    });
+      var v = parseFloat(e.target.value);
+      settings.premiums[f] = isFinite(v) ? v : 0;
+      // re-render everything except the premium inputs so focus/caret stays put
+      renderSummary(); renderStats(); renderHoldings(); renderHistory();
+      clearTimeout(premiumSaveTimer);
+      if (final) saveVault();
+      else premiumSaveTimer = setTimeout(saveVault, 400);
+    }
+    document.getElementById('premiumList').addEventListener('input', function(e){ applyPremium(e, false); });
+    document.getElementById('premiumList').addEventListener('change', function(e){ applyPremium(e, true); });
 
     document.getElementById('exportBtn').addEventListener('click', async function(){
       var code = await generateSaveCode();
@@ -972,7 +993,7 @@
 
   function lockNow(){
     vaultKey = null; vaultSalt = null;
-    holdings = []; settings = defaultSettings();
+    holdings = []; settings = defaultSettings(); history = [];
     editingId = null;
     document.getElementById('app').classList.add('hidden');
     showLockScreen();

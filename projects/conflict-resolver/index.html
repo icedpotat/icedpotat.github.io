@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conflict Resolver</title>
+<link rel="stylesheet" href="../diffchecker/style.css">
+<link rel="stylesheet" href="resolver.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-row">
+      <div>
+        <a href="../../index.html" class="dim" style="font-size:13px;text-decoration:none;color:inherit;">&larr; All tools</a>
+        <h1>Conflict Resolver</h1>
+        <p class="tagline">Resolve Syncthing <code>.sync-conflict-*</code> files in a local folder. Runs entirely in your browser.</p>
+      </div>
+      <button type="button" class="btn-ghost" id="help-open">Shortcuts &amp; legend</button>
+    </div>
+  </header>
+
+  <div class="modal-overlay" id="help-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div class="modal-head">
+        <h2 id="help-title">Shortcuts &amp; legend</h2>
+        <button type="button" class="btn-ghost" id="help-close">Close</button>
+      </div>
+      <div class="modal-body">
+        <section>
+          <h3>Keyboard shortcuts</h3>
+          <ul class="shortcut-list">
+            <li><span class="keys"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd></span><span>Compare</span></li>
+            <li><span class="keys"><kbd>S</kbd></span><span>Swap original ⇄ changed</span></li>
+            <li><span class="keys"><kbd>V</kbd></span><span>Toggle side-by-side / unified view</span></li>
+            <li><span class="keys"><kbd>N</kbd></span><span>Jump to next change</span></li>
+            <li><span class="keys"><kbd>P</kbd></span><span>Jump to previous change</span></li>
+            <li><span class="keys"><kbd>T</kbd></span><span>Scroll to top</span></li>
+            <li><span class="keys"><kbd>D</kbd></span><span>Copy diff output</span></li>
+            <li><span class="keys"><kbd>M</kbd></span><span>Copy merged result</span></li>
+            <li><span class="keys"><kbd>?</kbd></span><span>Show/hide this panel</span></li>
+          </ul>
+          <p class="modal-note">Single-letter shortcuts only fire when you're not typing in a text field, so they won't interfere with pasting or editing.</p>
+        </section>
+        <section>
+          <h3>Colors</h3>
+          <ul class="legend-list">
+            <li><span class="legend-swatch swatch-rem"></span>Removed text — in the diff view, and as "keep original" in the merge assistant</li>
+            <li><span class="legend-swatch swatch-add"></span>Added text — in the diff view, and as "keep changed" in the merge assistant (the default)</li>
+            <li><span class="legend-swatch swatch-both"></span>Merge assistant only: keeping both versions in the output</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <section class="rs" id="rs">
+      <div class="rs-bar">
+        <button type="button" class="btn-primary" id="rs-pick">Choose folder…</button>
+        <label class="btn-ghost rs-fallback" id="rs-fallback-label" hidden>Choose folder (read-only)…
+          <input type="file" id="rs-fallback" webkitdirectory multiple hidden>
+        </label>
+        <span class="rs-folder" id="rs-folder"></span>
+        <div class="controls-spacer"></div>
+        <button type="button" class="btn-ghost" id="rs-rescan" hidden>Rescan</button>
+      </div>
+      <p class="rs-note" id="rs-note"></p>
+      <table class="rs-table" id="rs-table" hidden>
+        <thead><tr><th>Conflict file</th><th>Type</th><th>Modified</th><th>Status</th><th></th></tr></thead>
+        <tbody id="rs-list"></tbody>
+      </table>
+      <div class="rs-active" id="rs-active" hidden>
+        <div><strong id="rs-active-name"></strong><span class="rs-sub" id="rs-active-sub"></span></div>
+        <div class="pane-actions" id="rs-active-actions"></div>
+      </div>
+    </section>
+    <div id="rs-diff" hidden>
+    <section class="inputs">
+      <div class="pane">
+        <div class="pane-head">
+          <label for="original">Current file</label>
+          <div class="pane-actions">
+            <button type="button" class="btn-ghost" data-copy="original">Copy</button>
+            <button type="button" class="btn-ghost" data-load="original">Load file</button>
+            <button type="button" class="btn-ghost" data-clear="original">Clear</button>
+          </div>
+        </div>
+        <textarea id="original" spellcheck="false" placeholder="Paste or load the original text…"></textarea>
+        <div class="pane-foot" id="count-original"></div>
+        <input type="file" id="file-original" accept=".txt,.md,.js,.py,.json,.css,.html,.csv,.log" hidden>
+      </div>
+
+      <div class="swap-col">
+        <button type="button" id="swap" title="Swap original and changed" aria-label="Swap original and changed">⇄</button>
+      </div>
+
+      <div class="pane">
+        <div class="pane-head">
+          <label for="changed">Conflict copy</label>
+          <div class="pane-actions">
+            <button type="button" class="btn-ghost" data-copy="changed">Copy</button>
+            <button type="button" class="btn-ghost" data-load="changed">Load file</button>
+            <button type="button" class="btn-ghost" data-clear="changed">Clear</button>
+          </div>
+        </div>
+        <textarea id="changed" spellcheck="false" placeholder="Paste or load the changed text…"></textarea>
+        <div class="pane-foot" id="count-changed"></div>
+        <input type="file" id="file-changed" accept=".txt,.md,.js,.py,.json,.css,.html,.csv,.log" hidden>
+      </div>
+    </section>
+
+    <section class="controls">
+      <label class="opt">
+        <input type="checkbox" id="opt-whitespace">
+        Ignore whitespace
+      </label>
+      <label class="opt">
+        <input type="checkbox" id="opt-case">
+        Ignore case
+      </label>
+      <label class="opt">
+        <input type="checkbox" id="opt-view" checked>
+        Side-by-side
+      </label>
+      <label class="opt">
+        <input type="checkbox" id="opt-fold" checked>
+        Collapse unchanged
+      </label>
+      <div class="controls-spacer"></div>
+      <button type="button" id="compare" class="btn-primary">Compare</button>
+    </section>
+
+    <section class="results" id="results" hidden>
+      <div class="results-head">
+        <div class="stats" id="stats"></div>
+        <div class="results-tools">
+          <div class="change-nav" title="Jump between changes (N / P)">
+            <button type="button" class="btn-ghost" id="prev-change" aria-label="Previous change">↑</button>
+            <span class="change-counter" id="change-counter">–</span>
+            <button type="button" class="btn-ghost" id="next-change" aria-label="Next change">↓</button>
+          </div>
+          <div class="pane-actions">
+            <button type="button" class="btn-ghost" id="goto-merge" hidden>Merge ↓</button>
+            <button type="button" class="btn-ghost" data-copy="diff-output">Copy diff</button>
+            <button type="button" class="btn-ghost" id="download">Download diff</button>
+          </div>
+        </div>
+      </div>
+      <div class="diff-view" id="diff-view"></div>
+    </section>
+
+    <section class="merge" id="merge-section" hidden>
+      <div class="merge-head">
+        <h2>Merge</h2>
+        <p class="merge-hint">Click a highlighted change to cycle it through changed → original → both. Whole added/removed lines get a single choice instead.</p>
+      </div>
+      <div class="merge-list" id="merge-list"></div>
+      <div class="pane merge-output-pane">
+        <div class="pane-head">
+          <label for="merged-output">Merged result</label>
+          <div class="pane-actions">
+            <button type="button" class="btn-ghost" data-copy="merged-output">Copy</button>
+            <button type="button" class="btn-ghost" id="download-merged">Download</button>
+          </div>
+        </div>
+        <textarea id="merged-output" spellcheck="false"></textarea>
+      </div>
+    </section>
+
+    <p class="empty-state" id="empty-state">Pick a conflict above to compare it with the current file.</p>
+    </div>
+  </main>
+
+  <button type="button" id="to-top" class="to-top" aria-label="Scroll to top" title="Scroll to top (T)" tabindex="-1">↑</button>
+
+  <script src="../diffchecker/app.js"></script>
+  <script src="resolver.js"></script>
+</body>
+</html>

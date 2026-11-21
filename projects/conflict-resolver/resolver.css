@@ -1,0 +1,15 @@
+.rs { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 18px; }
+.rs-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.rs-fallback { cursor: pointer; display: inline-block; }
+.rs-folder { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.rs-note { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+.rs-note.rs-err { color: var(--rem-text); }
+.rs-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+.rs-table th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.rs-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; word-break: break-all; }
+.rs-table tr.rs-current td { background: var(--panel-alt); }
+.rs-table tr.rs-done td { color: var(--muted); }
+.rs-sub { color: var(--muted); font-size: 12px; }
+.rs-active { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.rs-active .pane-actions { flex-wrap: wrap; }
+@media (max-width: 640px) { .rs-table th:nth-child(3), .rs-table td:nth-child(3) { display: none; } }

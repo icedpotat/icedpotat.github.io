@@ -77,6 +77,13 @@
   .nav{display:flex;gap:18px;margin-top:18px;font-size:14px;}
   .nav a{color:var(--text-dim);}
   .nav a:hover{color:var(--text);}
+  .links{display:flex;flex-wrap:wrap;gap:12px;margin-top:4px;}
+  .links a{display:block;flex:1 1 240px;padding:14px 16px;border:1px solid var(--border);border-radius:8px;text-decoration:none;background:var(--panel);}
+  .links a:hover{border-color:var(--text-faint);}
+  .links strong{display:block;font-weight:500;color:var(--text);}
+  .links span{color:var(--text-dim);font-size:13px;}
+  footer .private{color:var(--text-faint);text-decoration:none;}
+  footer .private:hover{color:var(--text-dim);}
 </style>
 </head>
 <body>
@@ -115,20 +122,8 @@
         </div>
       </a>
 
-      <a class="entry" href="projects/bundleeditor/" style="--accent:#32e12c;">
-        <span class="no">03</span>
-        <div>
-          <h2>Bundle Editor</h2>
-          <p class="desc">Edit, save and load JavaScript bundles in the browser. Password protected.</p>
-          <div class="meta">
-            <span>password protected</span>
-          </div>
-          <span class="open">Open <span class="arrow">↗</span></span>
-        </div>
-      </a>
-
       <a class="entry" href="projects/conflict-resolver/" style="--accent:#d8a94f;">
-        <span class="no">04</span>
+        <span class="no">03</span>
         <div>
           <h2>Conflict Resolver</h2>
           <p class="desc">Find Syncthing <code style="font-size:12px">.sync-conflict</code> files in a folder and merge each one back into the original, or keep one copy.</p>
@@ -145,6 +140,14 @@
 
     </div>
 
+    <section class="section" id="elsewhere">
+      <h2>Elsewhere</h2>
+      <div class="links">
+        <a href="https://icepot.itch.io/slingshot-to-summit" target="_blank" rel="noopener"><strong>Slingshot to Summit ↗</strong><span>My game, in development, on itch.io</span></a>
+        <a href="https://ko-fi.com/ipotato" target="_blank" rel="noopener"><strong>Ko-fi ↗</strong><span>Support these tools and the game</span></a>
+      </div>
+    </section>
+
     <section class="section" id="verify">
       <h2>Check that nothing is sent</h2>
       <p>You don't have to take my word for it. Your browser can show every request a page makes:</p>
@@ -157,7 +160,7 @@
       <p>The one exception is <strong>Metal Holdings</strong>. It fetches spot prices from <code>api.gold-api.com</code> and exchange rates from <code>api.frankfurter.dev</code>. Those requests don't include your holdings, and you'll see them in the list. The source of every page is readable with <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>U</kbd>, or on <a href="https://github.com/icedpotat/icedpotat.github.io">GitHub</a>. To be fully independent of this site, <a href="downloads/">download the tools</a> and open them from your own disk.</p>
     </section>
 
-    <footer>Hosted on GitHub Pages.</footer>
+    <footer>Hosted on GitHub Pages. · <a class="private" href="projects/bundleeditor/">bundle editor (private)</a></footer>
   </div>
 </body>
 </html>
